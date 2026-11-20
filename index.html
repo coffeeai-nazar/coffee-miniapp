@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Coffee AI</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Onest:wght@400;500;600;700&display=swap">
+<style>
+:root{--bg:#15100D;--card:#211913;--line:#2F241C;--tab:#1A130F;--text:#F3E9DC;--mute:#A8998A;--soft:#CDBBA8;--acc:#D9A267;--acc2:#E7B57C;--on:#1B120B;--r:14px}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:'Onest',sans-serif;font-size:14px;-webkit-tap-highlight-color:transparent}
+button{font-family:inherit;cursor:pointer}
+#app{max-width:480px;margin:0 auto;height:100%;position:relative;display:flex;flex-direction:column;overflow:hidden}
+.screen{display:none;flex:1;flex-direction:column;min-height:0}
+.screen.on{display:flex}
+.scroll>*{flex:none}
+.scroll{flex:1;overflow-y:auto;padding:4px 16px 160px;display:flex;flex-direction:column;gap:14px}
+h1{font-family:'Unbounded',sans-serif;font-weight:700;font-size:19px;margin:0}
+.top{display:flex;align-items:center;justify-content:space-between;padding:18px 16px 10px}
+.cap{font-size:12px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r)}
+.pill{flex:none;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--text);font-weight:600;font-size:13px}
+.pill.on{background:var(--acc);border-color:var(--acc);color:var(--on);font-weight:700}
+.row{display:flex;gap:8px;overflow-x:auto}
+.btn{min-height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-radius:var(--r);background:var(--acc);color:var(--on);font-weight:700;font-size:15px;border:0;width:100%}
+.btn.center{justify-content:center}
+.btn.ghost{background:transparent;border:1px solid var(--acc);color:var(--acc)}
+.sq{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:20px}
+.sq.acc{background:var(--acc);border:0;color:var(--on);font-weight:700;font-size:22px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.pic{height:104px;background:#2A1E16;display:flex;align-items:center;justify-content:center;font-family:'Unbounded',sans-serif;font-size:34px;color:var(--acc);overflow:hidden}
+.pic img{width:100%;height:100%;object-fit:cover}
+.pic svg{width:100%;height:100%;display:block}
+input[type=text],input[type=tel]{width:100%;min-height:48px;padding:0 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;outline:0;color:var(--text);font-family:inherit;font-size:14px}
+.tabs{position:absolute;left:0;right:0;bottom:0;height:72px;display:grid;grid-template-columns:repeat(4,1fr);background:var(--tab);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+.tabs button{background:none;border:0;color:var(--mute);font-size:11px;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.tabs button.on{color:var(--acc2)}
+.dock{position:absolute;left:0;right:0;bottom:72px;padding:12px 16px;background:linear-gradient(to top,var(--bg) 70%,rgba(21,16,13,0))}
+.dock.low{bottom:0;padding-bottom:20px}
+.sum div{display:flex;justify-content:space-between;color:var(--soft);padding:3px 0}
+.sum .t{color:var(--text);font-weight:700;font-size:16px;border-top:1px solid var(--line);margin-top:6px;padding-top:10px}
+.sw{width:52px;height:32px;border-radius:999px;border:0;background:var(--line);position:relative;padding:0}
+.sw i{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:var(--text);transition:.15s}
+.sw.on{background:var(--acc)}.sw.on i{left:24px;background:var(--on)}
+.bar{height:8px;border-radius:999px;background:var(--bg);overflow:hidden}.bar b{display:block;height:100%;background:var(--acc)}
+.hide{display:none!important}
+.toast{position:absolute;left:16px;right:16px;top:14px;padding:12px 14px;border-radius:12px;background:var(--acc);color:var(--on);font-weight:700;z-index:9;display:none}
+.lvl{display:flex;align-items:center;gap:12px;padding:12px 14px}
+.lvl.me{border-color:var(--acc)}
+.slot[disabled]{color:#6F6256;text-decoration:line-through;background:var(--tab)}
+</style>
+</head>
+<body>
+<div id="app">
+<div class="toast" id="toast" role="status"></div>
+
+<!-- МЕНЮ -->
+<section class="screen on" id="s-menu">
+ <div class="top"><div><div class="cap" id="shopSub">Кав'ярня</div><h1 id="shopName">Coffee AI</h1></div>
+  <button class="pill" id="bonusChip" style="border-color:var(--acc);color:var(--acc);font-weight:700">0 бонусів</button></div>
+ <div class="scroll">
+  <div class="card hide" id="activeOrder" role="button" tabindex="0" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-color:var(--acc);cursor:pointer"><div><div class="cap" style="color:var(--acc2);font-weight:700">Ваше замовлення</div><b id="activeTxt"></b></div><span style="color:var(--acc);font-size:22px">›</span></div>
+  <div class="card" id="promo" style="padding:16px;background:linear-gradient(135deg,#3A2418,#21140D)">
+   <div class="cap" style="color:var(--acc2);font-weight:700">Купон «Повернення»</div>
+   <div style="font-family:'Unbounded',sans-serif;font-weight:700;font-size:22px;line-height:1.1;margin:6px 0 10px">−15% на улюблений напій</div>
+   <div style="color:var(--soft);font-size:12.5px;margin-bottom:12px">Діє до неділі, застосується в кошику сам.</div>
+  </div>
+  <input type="text" id="q" placeholder="Лате, без лактози, веган" aria-label="Пошук по меню">
+  <div class="row" id="cats"></div>
+  <div class="grid" id="items"></div>
+ </div>
+ <div class="dock hide" id="cartDock"><button class="btn" id="cartBtn"><span id="cartCnt"></span><span id="cartSum"></span></button></div>
+</section>
+
+<!-- КАРТКА -->
+<section class="screen" id="s-prod">
+ <div class="top"><button class="sq" data-go="menu" aria-label="Назад">‹</button><div></div></div>
+ <div class="scroll" id="prodBody"></div>
+ <div class="dock low" id="prodDock"></div>
+</section>
+
+<!-- КОШИК -->
+<section class="screen" id="s-cart">
+ <div class="top"><div style="display:flex;gap:10px;align-items:center"><button class="sq" data-go="menu" aria-label="Назад">‹</button><h1>Кошик</h1></div></div>
+ <div class="scroll" id="cartBody"></div>
+ <div class="dock low"><button class="btn" id="orderBtn"><span>Оформити замовлення</span><span id="orderSum"></span></button></div>
+</section>
+
+<!-- ТРЕКЕР -->
+<section class="screen" id="s-track">
+ <div class="top"><div><div class="cap">Замовлення</div><h1 id="ordNum">—</h1></div></div>
+ <div class="scroll" id="trackBody"></div>
+ <div class="dock low"><button class="btn center" data-go="menu">Повернутись до меню</button></div>
+</section>
+
+<!-- БРОНЬ -->
+<section class="screen" id="s-book">
+ <div class="top"><h1>Бронювання столика</h1></div>
+ <div class="scroll">
+  <div><div class="cap" style="margin-bottom:8px">Дата</div><div class="row" id="days"></div></div>
+  <div><div class="cap" style="margin-bottom:8px">Вільний час</div><div class="grid" style="grid-template-columns:repeat(4,1fr);gap:8px" id="slots"></div>
+   <div class="cap" style="text-transform:none;letter-spacing:0;margin-top:8px">Показуємо тільки вільні години.</div></div>
+  <div class="card" style="padding:10px 12px;display:flex;align-items:center;justify-content:space-between">
+   <div><b>Гості</b><div style="color:var(--mute);font-size:12px">До 8 осіб</div></div>
+   <div style="display:flex;align-items:center;gap:4px"><button class="sq" id="gMinus" aria-label="Менше">−</button><b id="gNum" style="min-width:24px;text-align:center;font-size:16px">2</b><button class="sq" id="gPlus" aria-label="Більше">+</button></div></div>
+  <label><div class="cap" style="margin-bottom:8px">Телефон</div><input type="tel" id="phone" placeholder="+380"></label>
+  <div class="card" style="padding:12px 14px"><b>Ваша бронь</b><div style="color:var(--soft);margin-top:4px" id="bookSum"></div>
+   <div style="color:var(--mute);font-size:12px;margin-top:4px">Адміністратор підтвердить бронь, а за 2 години ми нагадаємо.</div></div>
+ </div>
+ <div class="dock"><button class="btn center" id="bookBtn">Забронювати</button></div>
+</section>
+
+<!-- БОНУСИ -->
+<section class="screen" id="s-bonus">
+ <div class="top"><h1>Мої бонуси</h1></div>
+ <div class="scroll" id="bonusBody"></div>
+</section>
+
+<!-- ІНФО -->
+<section class="screen" id="s-info">
+ <div class="top"><h1>Про кав'ярню</h1></div>
+ <div class="scroll" id="infoBody"></div>
+</section>
+
+<nav class="tabs" id="tabs" aria-label="Розділи">
+ <button data-tab="menu" class="on"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9Z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16"/></svg>Меню</button>
+ <button data-tab="book"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17"/></svg>Бронь</button>
+ <button data-tab="bonus"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="8" width="17" height="12" rx="2"/><path d="M12 8v12"/></svg>Бонуси</button>
+ <button data-tab="info"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></svg>Інфо</button>
+</nav>
+</div>
+
+<script>
+/* ===== НАЛАШТУВАННЯ (без секретів: сторінка публічна) ===== */
+const CONFIG = {
+  API_URL: "https://exponent-energize-donated.ngrok-free.dev/webhook/miniapp",   // порожньо = демо-режим
+  SHOP_NAME: "Coffee AI",
+  THEME: "A"
+};
+const THEMES = {
+  A:{bg:"#15100D",card:"#211913",line:"#2F241C",tab:"#1A130F",text:"#F3E9DC",mute:"#A8998A",soft:"#CDBBA8",acc:"#D9A267",acc2:"#E7B57C",on:"#1B120B"}
+};
+
+/* ===== ДЕМО-ДАНІ (у бойовому режимі приходять з API) ===== */
+const DEMO = {
+  profile:{name:"Гість",bonus:50,level:"Гість",discount:5,orders:3,spent:640,
+    coupons:[{id:"win",title:"Повернення",pct:15,note:"На улюблений напій, до неділі 23:59",active:true,item:"smoothie"},
+             {id:"bd",title:"День народження",pct:15,note:"Діє за 3 дні до і після дати. Вкажіть дату народження в профілі.",active:false}]},
+  menu:[
+   {id:"latte",cat:"Кава",name:"Лате",desc:"Еспресо з ніжним молоком і шовковою пінкою.",price:70,tags:"кава молоко",allergens:"молоко",pop:1},
+   {id:"cappuccino",cat:"Кава",name:"Капучино",desc:"Еспресо, молоко і густа пінка.",price:65,tags:"кава молоко",allergens:"молоко",pop:1},
+   {id:"espresso",cat:"Кава",name:"Еспресо",desc:"Класичний шот.",price:45,tags:"кава",allergens:"—",pop:1},
+   {id:"americano",cat:"Кава",name:"Американо",desc:"Еспресо з гарячою водою.",price:55,tags:"кава веган",allergens:"—"},
+   {id:"flatwhite",cat:"Кава",name:"Флет уайт",desc:"Подвійний еспресо з оксамитовим молоком.",price:80,tags:"кава молоко",allergens:"молоко",pop:1},
+   {id:"raf",cat:"Кава",name:"Раф ванільний",desc:"Еспресо з вершками та ваніллю.",price:85,tags:"кава молоко",allergens:"молоко"},
+   {id:"matcha",cat:"Чай та какао",name:"Матча лате",desc:"Японський зелений чай з молоком.",price:90,tags:"чай молоко",allergens:"молоко",pop:1},
+   {id:"cocoa",cat:"Чай та какао",name:"Какао з маршмелоу",desc:"Густе какао з зефіром.",price:75,tags:"какао молоко",allergens:"молоко"},
+   {id:"tea",cat:"Чай та какао",name:"Чай з лимоном",desc:"Чорний чай, лимон, мед.",price:50,tags:"чай веган",allergens:"—"},
+   {id:"icedlatte",cat:"Холодні напої",name:"Айс лате",desc:"Лате з льодом.",price:75,tags:"кава молоко",allergens:"молоко",pop:1},
+   {id:"smoothie",cat:"Холодні напої",name:"Ягідний смузі",desc:"Ягоди, банан, рослинне молоко.",price:95,tags:"веган без лактози",allergens:"—"},
+   {id:"lemonade",cat:"Холодні напої",name:"Лимонад цитрусовий",desc:"Лимон, м'ята, лід.",price:70,tags:"веган без лактози",allergens:"—"},
+   {id:"croissant",cat:"Випічка",name:"Круасан",desc:"Масляний, свіжий.",price:65,tags:"випічка",allergens:"глютен, молоко",pop:1},
+   {id:"cookie",cat:"Випічка",name:"Печиво з шоколадом",desc:"З шматочками шоколаду.",price:40,tags:"випічка",allergens:"глютен, яйця"},
+   {id:"syrniki",cat:"Сніданки",name:"Сирники зі сметаною",desc:"Ніжні сирники, сметана і ягоди.",price:110,tags:"сніданок",allergens:"глютен, молоко, яйця",pop:1},
+   {id:"cheesecake",cat:"Десерти",name:"Чизкейк",desc:"Класичний, з ягідним соусом.",price:110,tags:"десерт",allergens:"глютен, молоко, яйця"},
+   {id:"brownie",cat:"Десерти",name:"Брауні",desc:"Шоколадний, з хрусткою скоринкою.",price:80,tags:"десерт",allergens:"глютен, яйця, горіхи"}
+  ],
+  info:{about:"Свіжообсмажена кава, випічка щодня і замовлення без черги.",hours:[["Пн–Пт","08:00–21:00"],["Сб–Нд","09:00–21:00"]],address:"вул. Прикладна, 1, Київ"},
+  slots:["15:00","16:00","17:00","18:00","19:00","20:00"],busy:["18:00"],
+  orders:[{number:"COFFEE-1911-2-ABC",date:"19.11",status:"Готово",total:195,items:[{id:"croissant",name:"Круасан",qty:3}]},
+          {number:"COFFEE-1811-1-XYZ",date:"18.11",status:"Готово",total:135,items:[{id:"latte",name:"Лате",qty:1},{id:"cappuccino",name:"Капучино",qty:1}]}]
+};
+
+/* ===== СТАН ===== */
+const tg = window.Telegram && Telegram.WebApp;
+if(tg){ try{tg.ready();tg.expand();}catch(e){} }
+const S = {screen:"menu",cat:"Популярне",q:"",cart:{},useBonus:false,pickup:"Якнайшвидше",comment:"",
+  prod:null,day:0,slot:"16:00",guests:2,data:null,last:null};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money=n=>Math.round(n)+" ₴";
+/* ===== Власні ілюстрації страв (єдиний стиль; справжнє фото m.img їх замінює) ===== */
+const ILL=(()=>{
+  const bg='<defs><radialGradient id="gl" cx="50%" cy="48%" r="60%"><stop offset="0" stop-color="#D9A267" stop-opacity=".24"/><stop offset="1" stop-color="#D9A267" stop-opacity="0"/></radialGradient></defs><rect width="200" height="120" fill="#2A1E16"/><rect width="200" height="120" fill="url(#gl)"/>';
+  const plate='<ellipse cx="100" cy="106" rx="50" ry="6" fill="#000" opacity=".3"/><circle cx="100" cy="60" r="46" fill="#E9DCC8"/><circle cx="100" cy="60" r="41" fill="#F6EDE0"/>';
+  const bowl=i=>'<ellipse cx="100" cy="106" rx="50" ry="6" fill="#000" opacity=".3"/><circle cx="100" cy="60" r="46" fill="#E9DCC8"/><circle cx="100" cy="60" r="41" fill="#F6EDE0"/><circle cx="100" cy="60" r="33" fill="#E2D2BA"/>'+i;
+  const cup=(liq,art,o={})=>{const r=o.r||27,li=r-5;
+    return plate+`<path d="M${100+r-2} 52 h12 a8 8 0 0 1 0 16 h-12" fill="none" stroke="#FFFDF9" stroke-width="5"/><circle cx="100" cy="60" r="${r}" fill="#FFFDF9"/><circle cx="100" cy="60" r="${li}" fill="${liq}"/>${art||""}`;};
+  const heart='<path d="M100 72 C86 63 89 51 96 52 C99 52.5 100 55 100 55 C100 55 101 52.5 104 52 C111 51 114 63 100 72Z" fill="#F6E9D6"/>';
+  const leaf=l=>`<ellipse cx="100" cy="60" rx="15" ry="13" fill="#F3E3CB"/><ellipse cx="100" cy="60" rx="10" ry="8.5" fill="${l}"/><ellipse cx="100" cy="60" rx="5" ry="4" fill="#F3E3CB"/>`;
+  const dust='<circle cx="92" cy="54" r="1.3" fill="#7A4B2E"/><circle cx="104" cy="50" r="1.3" fill="#7A4B2E"/><circle cx="108" cy="64" r="1.3" fill="#7A4B2E"/><circle cx="96" cy="68" r="1.3" fill="#7A4B2E"/><circle cx="100" cy="60" r="1.3" fill="#7A4B2E"/>';
+  const ice=(x,y,r)=>`<rect x="${x}" y="${y}" width="16" height="16" rx="3" fill="#fff" opacity=".5" transform="rotate(${r} ${x+8} ${y+8})"/>`;
+  const glass=body=>`<defs><clipPath id="gc"><path d="M78 20 H122 L116 102 Q115 106 111 106 H89 Q85 106 84 102 Z"/></clipPath></defs><ellipse cx="100" cy="109" rx="30" ry="4" fill="#000" opacity=".3"/><g clip-path="url(#gc)">${body}</g><path d="M78 20 H122 L116 102 Q115 106 111 106 H89 Q85 106 84 102 Z" fill="rgba(255,255,255,.07)" stroke="rgba(255,255,255,.4)" stroke-width="1.5"/>`;
+  const straw='<path d="M113 8 L101 98" stroke="#D9A267" stroke-width="4" stroke-linecap="round"/>';
+  const lemon=(x,y)=>`<circle cx="${x}" cy="${y}" r="12" fill="#F4D35E"/><circle cx="${x}" cy="${y}" r="9" fill="#F9E48A"/><path d="M${x} ${y-9}V${y+9}M${x-8} ${y-4.5}L${x+8} ${y+4.5}M${x-8} ${y+4.5}L${x+8} ${y-4.5}" stroke="#F4D35E" stroke-width="1.2"/>`;
+  const orange=(x,y)=>`<circle cx="${x}" cy="${y}" r="12" fill="#F08A24"/><circle cx="${x}" cy="${y}" r="9" fill="#F9B24F"/><path d="M${x} ${y-9}V${y+9}M${x-8} ${y-4.5}L${x+8} ${y+4.5}M${x-8} ${y+4.5}L${x+8} ${y-4.5}" stroke="#F08A24" stroke-width="1.2"/>`;
+  const mint=(x,y)=>`<ellipse cx="${x}" cy="${y}" rx="7" ry="3.5" fill="#6FA35B" transform="rotate(-25 ${x} ${y})"/><ellipse cx="${x+8}" cy="${y-3}" rx="7" ry="3.5" fill="#86BC6E" transform="rotate(15 ${x+8} ${y-3})"/>`;
+  const berry=(x,y,c)=>`<circle cx="${x}" cy="${y}" r="3.6" fill="${c}"/><circle cx="${x-1}" cy="${y-1}" r="1" fill="#fff" opacity=".5"/>`;
+  const mac=(x,y,c)=>`<ellipse cx="${x}" cy="${y+6}" rx="16" ry="6" fill="${c}"/><rect x="${x-14}" y="${y-1}" width="28" height="7" rx="3" fill="#FFF4DC"/><ellipse cx="${x}" cy="${y-2}" rx="16" ry="7" fill="${c}"/><ellipse cx="${x-4}" cy="${y-4}" rx="7" ry="2.5" fill="#fff" opacity=".35"/>`;
+  const layers=(x,y,w,arr)=>{let o="",yy=y;arr.forEach(([c,h])=>{o+=`<rect x="${x}" y="${yy}" width="${w}" height="${h}" fill="${c}"/>`;yy+=h;});return `<defs><clipPath id="lc"><rect x="${x}" y="${y}" width="${w}" height="${yy-y}" rx="6"/></clipPath></defs><g clip-path="url(#lc)">${o}</g>`;};
+  const crumbs='<circle cx="84" cy="44" r="1.5" fill="#B8742E"/><circle cx="96" cy="42" r="1.5" fill="#B8742E"/><circle cx="108" cy="45" r="1.5" fill="#B8742E"/><circle cx="120" cy="43" r="1.5" fill="#B8742E"/>';
+  const T={
+   espresso:()=>cup("#3A2217",'<circle cx="100" cy="60" r="12" fill="#B27A47" opacity=".5"/>',{r:19}),
+   doppio:()=>cup("#3A2217",'<circle cx="100" cy="60" r="15" fill="#B27A47" opacity=".5"/><circle cx="100" cy="60" r="8" fill="#6B3E22" opacity=".6"/>',{r:23}),
+   ristretto:()=>cup("#2A150C",'<circle cx="100" cy="60" r="8" fill="#9A6A3E" opacity=".55"/>',{r:15}),
+   americano:()=>cup("#2E1A10",'<circle cx="100" cy="60" r="21" fill="none" stroke="#9A6A3E" stroke-width="3" opacity=".5"/>',{r:29}),
+   filter:()=>cup("#4A2C1A",'<circle cx="100" cy="60" r="21" fill="none" stroke="#B88655" stroke-width="2" opacity=".5"/>',{r:29}),
+   cappuccino:()=>cup("#6B432B",'<circle cx="100" cy="60" r="22" fill="#F2E0C4"/><circle cx="100" cy="60" r="16" fill="#F7EAD3"/>'+dust,{r:28}),
+   latte:()=>cup("#B07A4A",leaf("#B07A4A")),
+   flatwhite:()=>cup("#9B6238",heart),
+   cortado:()=>cup("#8A5A38",'<circle cx="100" cy="60" r="14" fill="#D9B88C"/><circle cx="100" cy="60" r="7" fill="#EAD2AB"/>',{r:23}),
+   mocha:()=>cup("#5A3220",'<circle cx="100" cy="60" r="16" fill="#F6E9D6"/><path d="M88 60 Q94 52 100 60 T112 60" fill="none" stroke="#4A2A1E" stroke-width="2.5" stroke-linecap="round"/>'),
+   caramel:()=>cup("#C28A4E",'<circle cx="100" cy="60" r="18" fill="#E0B27A"/><path d="M86 52 L96 66 L104 50 L114 66" fill="none" stroke="#8F4F1E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="92" cy="72" r="1.4" fill="#fff"/><circle cx="108" cy="72" r="1.4" fill="#fff"/><circle cx="100" cy="46" r="1.4" fill="#fff"/>'),
+   lavender:()=>cup("#CDB4DB",'<circle cx="100" cy="60" r="17" fill="#E7D8EE"/><path d="M96 70 L112 48" stroke="#6F8F4E" stroke-width="2"/><ellipse cx="108" cy="52" rx="2.2" ry="3.6" fill="#7B5EA7" transform="rotate(35 108 52)"/><ellipse cx="111" cy="48" rx="2.2" ry="3.6" fill="#8E70BA" transform="rotate(35 111 48)"/><ellipse cx="104" cy="57" rx="2.2" ry="3.6" fill="#7B5EA7" transform="rotate(35 104 57)"/>'),
+   raf:()=>cup("#E6CFA9",'<circle cx="92" cy="56" r="2" fill="#C9A877"/><circle cx="106" cy="64" r="2" fill="#C9A877"/><circle cx="102" cy="52" r="1.6" fill="#C9A877"/>'),
+   matcha:()=>cup("#86AB62",heart),
+   cocoa:()=>cup("#4A2A1E",'<circle cx="92" cy="58" r="6" fill="#FFF6EA"/><circle cx="106" cy="56" r="6" fill="#FFF6EA"/><circle cx="100" cy="68" r="6" fill="#FFF6EA"/>'),
+   hotchoc:()=>cup("#3B1F15",'<circle cx="100" cy="60" r="15" fill="#FFF6EA"/><circle cx="100" cy="60" r="9" fill="#F3E3CB"/><circle cx="94" cy="52" r="1.6" fill="#4A2A1E"/><circle cx="106" cy="54" r="1.6" fill="#4A2A1E"/><circle cx="100" cy="70" r="1.6" fill="#4A2A1E"/>'),
+   tea:()=>cup("#C98A3A",lemon(104,58)),
+   blacktea:()=>cup("#7A3B1E",'<circle cx="100" cy="60" r="21" fill="none" stroke="#C47A4A" stroke-width="2" opacity=".5"/><path d="M100 60 L84 78" stroke="#F6EDE0" stroke-width="1.4"/><rect x="78" y="76" width="9" height="9" rx="1.5" fill="#E9DCC8" transform="rotate(-20 82 80)"/>'),
+   greentea:()=>cup("#B9C86A",'<circle cx="100" cy="60" r="21" fill="none" stroke="#DCE59C" stroke-width="2" opacity=".6"/>'+mint(90,58)),
+   ginger:()=>cup("#D9A24A",'<circle cx="104" cy="58" r="11" fill="#E8C98A"/><circle cx="104" cy="58" r="8" fill="#F3DDA8"/><circle cx="101" cy="55" r="1.2" fill="#C9A15A"/><circle cx="107" cy="61" r="1.2" fill="#C9A15A"/><circle cx="105" cy="55" r="1.2" fill="#C9A15A"/>'),
+   icedlatte:()=>glass('<rect x="70" y="70" width="60" height="44" fill="#5A3722"/><rect x="70" y="50" width="60" height="22" fill="#A67C55"/><rect x="70" y="14" width="60" height="38" fill="#F3E4CC"/>'+ice(84,22,10)+ice(103,32,-14)+ice(88,52,20))+straw,
+   icedamericano:()=>glass('<rect x="70" y="24" width="60" height="90" fill="#2A170E"/><rect x="70" y="24" width="60" height="22" fill="#4A2C1A"/>'+ice(84,30,10)+ice(103,44,-14)+ice(88,66,20))+straw,
+   coldbrew:()=>glass('<rect x="70" y="24" width="60" height="90" fill="#1F110A"/><rect x="70" y="24" width="60" height="12" fill="#D8B88E"/>'+ice(86,46,12)+ice(104,62,-10)+ice(88,80,18)+'<rect x="94" y="30" width="3" height="70" fill="#fff" opacity=".12"/>')+straw,
+   bumble:()=>glass('<rect x="70" y="24" width="60" height="90" fill="#F08A24"/><rect x="70" y="24" width="60" height="34" fill="#2E1A10"/><rect x="70" y="52" width="60" height="10" fill="#8A4B20" opacity=".7"/>'+ice(86,28,10)+ice(104,36,-14)+ice(88,70,18))+orange(124,24)+'<path d="M113 8 L101 98" stroke="#D9A267" stroke-width="4" stroke-linecap="round"/>',
+   lemonade:()=>glass('<rect x="70" y="26" width="60" height="90" fill="#F1D04F"/><rect x="70" y="26" width="60" height="14" fill="#F7E27C"/>'+ice(86,50,12)+ice(104,66,-10)+ice(88,80,18))+lemon(124,24)+mint(88,20),
+   passion:()=>glass('<rect x="70" y="26" width="60" height="90" fill="#F08A24"/><rect x="70" y="26" width="60" height="30" fill="#F6C23B"/>'+ice(86,32,12)+ice(104,60,-10)+ice(88,78,18))+'<circle cx="124" cy="24" r="12" fill="#5B2A5E"/><circle cx="124" cy="24" r="8.5" fill="#F4C542"/><circle cx="121" cy="22" r="1.4" fill="#5B2A5E"/><circle cx="126" cy="25" r="1.4" fill="#5B2A5E"/><circle cx="122" cy="27" r="1.4" fill="#5B2A5E"/><circle cx="127" cy="21" r="1.4" fill="#5B2A5E"/>'+mint(86,20),
+   elder:()=>glass('<rect x="70" y="26" width="60" height="90" fill="#E4E7A3"/><rect x="70" y="26" width="60" height="14" fill="#F1F2C4"/>'+ice(86,50,12)+ice(104,66,-10)+ice(88,80,18))+'<g fill="#fff"><circle cx="88" cy="18" r="3"/><circle cx="93" cy="14" r="3"/><circle cx="98" cy="18" r="3"/><circle cx="93" cy="21" r="3"/></g><circle cx="93" cy="17" r="1.4" fill="#F4D35E"/>'+mint(104,18),
+   smoothie:()=>glass('<rect x="70" y="26" width="60" height="90" fill="#B8446F"/><rect x="70" y="26" width="60" height="24" fill="#D96B91"/>'+ice(88,64,10))+straw+'<circle cx="92" cy="22" r="6" fill="#E24A5B"/><circle cx="104" cy="20" r="5" fill="#3F4E9A"/><circle cx="98" cy="17" r="4" fill="#E24A5B"/>',
+   greensmoothie:()=>glass('<rect x="70" y="26" width="60" height="90" fill="#7DB35A"/><rect x="70" y="26" width="60" height="24" fill="#A0CF7C"/>'+ice(88,64,10))+straw+'<circle cx="96" cy="20" r="7" fill="#F4E2A0"/><circle cx="96" cy="20" r="4" fill="#F9EDBF"/><ellipse cx="108" cy="22" rx="8" ry="4" fill="#4F8F3F" transform="rotate(-20 108 22)"/>',
+   croissant:()=>{let e="";const sz=[[13,9],[16,11],[19,13],[16,11],[13,9]];[225,252,270,288,315].forEach((a,i)=>{const t=a*Math.PI/180,x=100+34*Math.cos(t),y=88+34*Math.sin(t);
+      e+=`<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${sz[i][0]}" ry="${sz[i][1]}" fill="#DE9C45" stroke="#B8742E" stroke-width="1.3" transform="rotate(${a+90} ${x.toFixed(1)} ${y.toFixed(1)})"/><ellipse cx="${(x-1).toFixed(1)}" cy="${(y-2).toFixed(1)}" rx="${sz[i][0]-6}" ry="${sz[i][1]-6}" fill="#EDB868" opacity=".8" transform="rotate(${a+90} ${x.toFixed(1)} ${y.toFixed(1)})"/>`;});return plate+e;},
+   almond:()=>T.croissant()+'<g fill="#FFF3D6" stroke="#E8CFA0" stroke-width=".6"><ellipse cx="74" cy="66" rx="3.4" ry="1.8" transform="rotate(-30 74 66)"/><ellipse cx="86" cy="58" rx="3.4" ry="1.8" transform="rotate(20 86 58)"/><ellipse cx="100" cy="55" rx="3.4" ry="1.8"/><ellipse cx="114" cy="58" rx="3.4" ry="1.8" transform="rotate(-20 114 58)"/><ellipse cx="126" cy="66" rx="3.4" ry="1.8" transform="rotate(30 126 66)"/><ellipse cx="93" cy="62" rx="3" ry="1.6" transform="rotate(40 93 62)"/><ellipse cx="108" cy="62" rx="3" ry="1.6" transform="rotate(-40 108 62)"/></g>',
+   cinnabon:()=>plate+'<circle cx="100" cy="60" r="28" fill="#C98B3E"/><circle cx="100" cy="60" r="25" fill="#DDA55A"/><path d="M100 60 a5 5 0 0 1 10 0 a10 10 0 0 1 -20 0 a15 15 0 0 1 30 0 a20 20 0 0 1 -40 0" fill="none" stroke="#9A5A26" stroke-width="3.5" stroke-linecap="round"/><ellipse cx="92" cy="52" rx="15" ry="10" fill="#FFFDF5" opacity=".92"/><ellipse cx="112" cy="60" rx="11" ry="8" fill="#FFFDF5" opacity=".92"/><ellipse cx="98" cy="72" rx="12" ry="6" fill="#FFFDF5" opacity=".92"/>',
+   painchoc:()=>plate+'<g transform="rotate(-18 100 60)"><rect x="64" y="44" width="72" height="34" rx="16" fill="#D8923F" stroke="#B8742E" stroke-width="1.4"/><rect x="68" y="47" width="64" height="24" rx="12" fill="#E8AE62" opacity=".8"/><path d="M82 46 V76 M92 45 V77 M102 45 V77 M112 45 V77 M122 46 V76" stroke="#B8742E" stroke-width="1.2" opacity=".7"/><rect x="72" y="58" width="56" height="5" rx="2.5" fill="#4A2A1E"/></g>',
+   puff:()=>plate+'<g transform="rotate(45 100 60)"><rect x="76" y="36" width="48" height="48" rx="7" fill="#D8923F" stroke="#B8742E" stroke-width="1.4"/><rect x="80" y="40" width="40" height="40" rx="5" fill="#EBB86A"/></g><circle cx="100" cy="60" r="11" fill="#B5233D"/><circle cx="96" cy="56" r="3" fill="#E24A5B"/><circle cx="104" cy="64" r="1.5" fill="#fff" opacity=".6"/><circle cx="74" cy="60" r="1.3" fill="#fff"/><circle cx="126" cy="60" r="1.3" fill="#fff"/><circle cx="100" cy="34" r="1.3" fill="#fff"/><circle cx="100" cy="86" r="1.3" fill="#fff"/>',
+   sandwich:()=>plate+'<path d="M64 58 Q64 34 100 34 Q136 34 136 58Z" fill="#D9A25B"/><path d="M70 52 Q76 40 100 38" fill="none" stroke="#EBC07C" stroke-width="3" stroke-linecap="round"/><circle cx="90" cy="44" r="1.2" fill="#FFF3D6"/><circle cx="102" cy="42" r="1.2" fill="#FFF3D6"/><circle cx="112" cy="46" r="1.2" fill="#FFF3D6"/><rect x="66" y="58" width="68" height="6" rx="3" fill="#D6455F"/><path d="M64 64 q6 6 12 0 t12 0 t12 0 t12 0 t12 0 t12 0 v4 h-72Z" fill="#7DB35A"/><rect x="66" y="68" width="68" height="9" rx="4" fill="#EBCB93"/><rect x="64" y="77" width="72" height="9" rx="4.5" fill="#C98B3E"/>',
+   cookie:()=>plate+'<circle cx="100" cy="60" r="25" fill="#B8742E"/><circle cx="100" cy="60" r="23" fill="#CC9450"/><circle cx="90" cy="52" r="3.6" fill="#4A2A1E"/><circle cx="108" cy="50" r="3.6" fill="#4A2A1E"/><circle cx="112" cy="66" r="3.6" fill="#4A2A1E"/><circle cx="96" cy="70" r="3.6" fill="#4A2A1E"/><circle cx="100" cy="60" r="3.2" fill="#4A2A1E"/>',
+   syrniki:()=>plate+'<circle cx="88" cy="66" r="16" fill="#C98B3E"/><circle cx="88" cy="66" r="12" fill="#DDA55A"/><circle cx="113" cy="62" r="16" fill="#C98B3E"/><circle cx="113" cy="62" r="12" fill="#DDA55A"/><circle cx="100" cy="46" r="16" fill="#C98B3E"/><circle cx="100" cy="46" r="12" fill="#E4B365"/><circle cx="100" cy="64" r="7" fill="#FFFDF5"/><circle cx="94" cy="56" r="3" fill="#C0344B"/><circle cx="108" cy="70" r="3" fill="#3F4E9A"/><ellipse cx="82" cy="52" rx="6" ry="3" fill="#6FA35B" transform="rotate(-30 82 52)"/>',
+   omelet:()=>plate+'<path d="M68 64 Q68 40 100 40 Q132 40 132 64 Q132 82 100 82 Q68 82 68 64Z" fill="#F4C842"/><path d="M72 62 Q100 50 128 62" fill="none" stroke="#D9A92B" stroke-width="2"/><path d="M74 58 Q100 46 126 58 Q100 56 74 58Z" fill="#F9DD7A" opacity=".7"/><g fill="#5E9B45"><circle cx="86" cy="68" r="1.8"/><circle cx="100" cy="72" r="1.8"/><circle cx="114" cy="68" r="1.8"/><circle cx="106" cy="62" r="1.6"/><circle cx="92" cy="60" r="1.6"/></g><circle cx="122" cy="80" r="5" fill="#D6455F"/><circle cx="121" cy="79" r="1.3" fill="#fff" opacity=".5"/>',
+   granola:()=>bowl('<circle cx="100" cy="60" r="29" fill="#FFFDF5"/><g fill="#B9742F"><ellipse cx="86" cy="62" rx="5" ry="3" transform="rotate(20 86 62)"/><ellipse cx="94" cy="72" rx="5" ry="3" transform="rotate(-20 94 72)"/><ellipse cx="82" cy="52" rx="4" ry="2.6"/><ellipse cx="104" cy="74" rx="5" ry="3"/><ellipse cx="90" cy="46" rx="4" ry="2.6" transform="rotate(30 90 46)"/><ellipse cx="116" cy="72" rx="4" ry="2.6"/></g><circle cx="106" cy="52" r="4" fill="#C0344B"/><circle cx="114" cy="58" r="4" fill="#3F4E9A"/><circle cx="104" cy="62" r="4" fill="#C0344B"/>'+mint(100,46)),
+   avotoast:()=>plate+'<rect x="72" y="36" width="56" height="48" rx="9" fill="#C98B3E"/><rect x="76" y="40" width="48" height="40" rx="6" fill="#E2AE62"/><path d="M80 52 Q90 44 100 50 T120 50 V72 Q110 80 100 74 T80 72Z" fill="#9BBF5A"/><ellipse cx="96" cy="58" rx="9" ry="4" fill="#B8D777" opacity=".8"/><circle cx="108" cy="66" r="6" fill="#D6455F"/><circle cx="108" cy="66" r="3" fill="#E9707F"/><circle cx="90" cy="70" r="1.3" fill="#fff"/><circle cx="114" cy="54" r="1.3" fill="#fff"/>',
+   oatmeal:()=>bowl('<circle cx="100" cy="60" r="29" fill="#EBD7B3"/><path d="M82 58 Q92 50 100 58 T118 58" fill="none" stroke="#D9A22B" stroke-width="3" stroke-linecap="round"/>'+berry(92,68,"#C0344B")+berry(104,70,"#3F4E9A")+berry(112,60,"#C0344B")+berry(98,50,"#3F4E9A")+berry(86,56,"#C0344B")+'<circle cx="108" cy="50" r="5" fill="#F4E2A0"/>'+mint(100,62)),
+   cheesecake:()=>plate+'<polyline points="68,82 130,90" stroke="#B07A45" stroke-width="7" stroke-linecap="round"/><polygon points="68,80 130,56 130,88" fill="#F5E6C4" stroke="#F5E6C4" stroke-width="6" stroke-linejoin="round"/><path d="M104 66 Q112 60 122 62 Q124 70 116 74 Q108 74 104 66Z" fill="#B5476E"/><circle cx="118" cy="62" r="5" fill="#D6455F"/><path d="M118 57 l3 -4" stroke="#6FA35B" stroke-width="2" stroke-linecap="round"/>',
+   brownie:()=>plate+'<rect x="74" y="36" width="52" height="46" rx="6" fill="#3E2318"/><rect x="78" y="40" width="44" height="38" rx="4" fill="#5B3526"/><path d="M84 52 L98 58 L110 50 M96 72 L108 66" stroke="#3A2016" stroke-width="1.5" fill="none"/><circle cx="90" cy="46" r="1.4" fill="#F6EDE0"/><circle cx="112" cy="60" r="1.4" fill="#F6EDE0"/><circle cx="100" cy="74" r="1.4" fill="#F6EDE0"/><circle cx="116" cy="46" r="1.4" fill="#F6EDE0"/>',
+   tiramisu:()=>plate+layers(72,40,56,[["#5B3526",7],["#F5E6C4",11],["#8A5A38",8],["#F5E6C4",11],["#8A5A38",8]])+'<circle cx="84" cy="43" r="1.4" fill="#F6EDE0" opacity=".7"/><circle cx="102" cy="42" r="1.4" fill="#F6EDE0" opacity=".7"/><circle cx="118" cy="44" r="1.4" fill="#F6EDE0" opacity=".7"/>',
+   medovik:()=>plate+layers(70,38,60,[["#C98B3E",8],["#F3E1B8",6],["#C98B3E",8],["#F3E1B8",6],["#C98B3E",8],["#F3E1B8",6]])+crumbs.replace(/y="/g,'y="')+'<ellipse cx="100" cy="36" rx="30" ry="3" fill="#E4B365"/>',
+   napoleon:()=>plate+layers(68,42,64,[["#FFFDF5",7],["#E0A850",5],["#FFF1CF",7],["#E0A850",5],["#FFF1CF",7],["#E0A850",5],["#FFF1CF",5]])+'<path d="M76 45 H124 M76 48 H124" stroke="#4A2A1E" stroke-width="1.2"/>',
+   macaron:()=>plate+mac(100,48,"#B9A3D6")+mac(80,74,"#E8A0B8")+mac(120,74,"#A9C98A"),
+   eclair:()=>plate+'<g transform="rotate(-12 100 62)"><rect x="60" y="52" width="80" height="24" rx="12" fill="#E2B263"/><rect x="62" y="48" width="76" height="16" rx="8" fill="#4A2A1E"/><rect x="68" y="50" width="40" height="3" rx="1.5" fill="#7A4B2E"/><path d="M72 60 H128" stroke="#FFF6EA" stroke-width="1.6" stroke-dasharray="4 4" opacity=".8"/></g>',
+   carrotcake:()=>plate+'<polyline points="68,82 130,90" stroke="#B07A45" stroke-width="7" stroke-linecap="round"/><polygon points="68,80 130,56 130,88" fill="#D4813A" stroke="#D4813A" stroke-width="6" stroke-linejoin="round"/><polyline points="70,83 130,72" stroke="#FFF1D6" stroke-width="3.5" fill="none"/><polyline points="68,79 130,55" stroke="#FFF6E2" stroke-width="6" fill="none"/><path d="M110 56 l-4 -9 l9 5Z" fill="#F28C28"/><path d="M106 47 l-2 -3 M109 48 l1 -4" stroke="#6FA35B" stroke-width="1.6" stroke-linecap="round"/><circle cx="100" cy="74" r="1.5" fill="#8A5A38"/><circle cx="116" cy="74" r="1.5" fill="#8A5A38"/>',
+   pannacotta:()=>plate+'<ellipse cx="100" cy="76" rx="22" ry="5" fill="#000" opacity=".12"/><path d="M78 74 Q78 40 100 40 Q122 40 122 74Z" fill="#FFFDF5"/><path d="M84 56 Q88 46 98 44" fill="none" stroke="#fff" stroke-width="3" opacity=".7" stroke-linecap="round"/><path d="M80 62 Q80 42 100 42 Q120 42 120 62 Q114 56 110 66 Q104 58 100 68 Q94 58 90 66 Q86 56 80 62Z" fill="#B5233D"/>'+berry(100,40,"#E24A5B")+berry(108,42,"#3F4E9A")+mint(92,40)
+  };
+  const R=[
+   [/допіо|doppio/,"doppio"],[/р[иі]стрето/,"ristretto"],[/еспресо|espresso/,"espresso"],
+   [/айс американо/,"icedamericano"],[/колд брю|cold brew/,"coldbrew"],[/фільтр/,"filter"],[/американо|americano/,"americano"],
+   [/солон\S* карамел/,"caramel"],[/лавандов/,"lavender"],[/апельсинов|бамбл/,"bumble"],[/кортадо/,"cortado"],[/мокко|mocha/,"mocha"],
+   [/айс|холодн\S* лат|ice|колд|cold/,"icedlatte"],[/капучино|cappuccino/,"cappuccino"],[/матч/,"matcha"],[/флет|flat/,"flatwhite"],[/раф/,"raf"],[/лате|латте|latte|макіато|macchiato/,"latte"],
+   [/гарячий шоколад|hot chocolate/,"hotchoc"],[/какао|cocoa/,"cocoa"],
+   [/чай з імбир|імбир/,"ginger"],[/чай зелен|зелен\S* чай|green tea/,"greentea"],[/чай чорн|чорн\S* чай|black tea/,"blacktea"],[/чай|tea/,"tea"],
+   [/маракуя|passion/,"passion"],[/бузин/,"elder"],[/банан|шпинат/,"greensmoothie"],[/смузі|smoothie|фреш|коктейл|ягід/,"smoothie"],[/лимонад|lemonade|морс|компот|сік|juice|тонік/,"lemonade"],
+   [/сирник|syrniki|млинц|панкейк|оладк|вареник/,"syrniki"],[/омлет|яєчн|омлєт/,"omelet"],[/гранол|йогурт/,"granola"],[/тост|авокадо/,"avotoast"],[/вівсянк|каш/,"oatmeal"],
+   [/синабон|cinnabon|з корицею/,"cinnabon"],[/пан о шоколя|шоколя|pain au/,"painchoc"],[/слойк|вишн/,"puff"],[/сендвіч|sandwich|бутерброд|курк/,"sandwich"],[/круасан з мигдал/,"almond"],[/круасан|croissant|булоч|багет/,"croissant"],[/печив|cookie/,"cookie"],
+   [/чизкейк|cheesecake/,"cheesecake"],[/брауні|brownie|кекс|мафін|маффін/,"brownie"],[/тірамісу|tiramisu/,"tiramisu"],[/медовик/,"medovik"],[/наполеон/,"napoleon"],[/макарон|macaron/,"macaron"],[/еклер|eclair/,"eclair"],[/морквян/,"carrotcake"],[/панна кота|panna/,"pannacotta"],[/торт|десерт/,"cheesecake"]
+  ];
+  const C={"Кава":"latte","Чай та какао":"tea","Холодні напої":"lemonade","Випічка":"cookie","Десерти":"cheesecake","Сніданки":"omelet"};
+  return m=>{const n=String(m.name||"").toLowerCase(); let k=(R.find(r=>r[0].test(n))||[])[1]||C[m.cat]||"latte";
+    return `<svg viewBox="0 0 200 120" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${bg}${T[k]()}</svg>`;};
+})();
+const pic=m=>m.img?`<img src="${esc(m.img)}" alt="">`:ILL(m);
+
+
+/* ===== API ===== */
+async function api(path,body){
+  if(!CONFIG.API_URL) return null;           // демо
+  const ac=new AbortController(); const to=setTimeout(()=>ac.abort(),25000); let r;
+  try{
+    r=await fetch(CONFIG.API_URL+"/"+path,{method:"POST",headers:{"Content-Type":"application/json","ngrok-skip-browser-warning":"1"},signal:ac.signal,
+      body:JSON.stringify({initData:tg?tg.initData:"",...body})});
+  }catch(e){ clearTimeout(to); throw new Error(e&&e.name==="AbortError"?"Довго немає відповіді від закладу. Спробуйте ще раз.":"Немає зв'язку із закладом. Перевірте інтернет."); }
+  clearTimeout(to);
+  let j=null; try{j=await r.json();}catch(e){}
+  if(!r.ok){const er=new Error((j&&j.error)||("api "+r.status)); er.status=r.status; throw er;}
+  return j;
+}
+function applyTheme(){ const t=THEMES[CONFIG.THEME]||THEMES.A; for(const k in t) document.documentElement.style.setProperty("--"+({acc2:"acc2"}[k]||k),t[k]); $("#shopName").textContent=CONFIG.SHOP_NAME; }
+async function load(){
+  applyTheme();
+  let cached=null; try{ cached=JSON.parse(localStorage.getItem("ca_boot")||"null"); }catch(e){}
+  if(cached&&cached.menu&&cached.profile){ S.data=cached; renderAll(); }
+  else { $("#items").innerHTML='<div style="grid-column:1/3;color:var(--mute)">Завантажуємо меню…</div>'; }
+  try{
+    const d=await api("bootstrap",{});
+    S.data=d||DEMO;
+    if(d){ try{ localStorage.setItem("ca_boot",JSON.stringify(d)); }catch(e){} }
+  }catch(e){
+    if(cached&&cached.menu){ S.data=cached; toast("Немає зв'язку. Показано збережене меню.",4000); }
+    else { S.data=DEMO; toast("Працюємо в демо-режимі"); }
+  }
+  renderAll(); loadOrders();
+  const tb=new URLSearchParams(location.search).get("tab"); if(["menu","book","bonus","info"].includes(tb)) go(tb);
+}
+
+/* ===== ДОПОМІЖНЕ ===== */
+function toast(m,ms){const t=$("#toast");t.textContent=m;t.style.display="block";t.onclick=()=>{t.style.display="none";};clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display="none",ms||4500);}
+function go(name){
+  S.screen=name; $$(".screen").forEach(s=>s.classList.toggle("on",s.id==="s-"+name));
+  $("#tabs").classList.toggle("hide",["prod","cart","track"].includes(name));
+  $$("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===name));
+  renderAll(); if(name==="book") loadSlots(); if(name==="bonus"||name==="menu") loadOrders(); if(name==="track") startPoll(); else stopPoll(); const sc=document.querySelector("#s-"+name+" .scroll"); if(sc) sc.scrollTop=0;
+}
+const item=id=>S.data.menu.find(m=>m.id===id);
+function lines(){return Object.entries(S.cart).filter(([,q])=>q>0).map(([k,q])=>{const id=k.split("|")[0];const m=item(id);return {k,m,q,price:m.price+(S.cartExtra&&S.cartExtra[k]||0)};});}
+function totals(){
+  const L=lines(), p=S.data.profile; const sum=L.reduce((a,l)=>a+l.price*l.q,0);
+  let coupon=0,couponId=null,couponPct=0,couponTitle=""; const c=p.coupons.find(c=>c.active&&c.pct);
+  if(c){ const drinks=L.filter(l=>["Кава","Чай та какао","Холодні напої"].includes(l.m.cat)).sort((a,b)=>b.price-a.price)[0];
+    if(drinks){coupon=Math.round(drinks.price*c.pct/100);couponId=drinks.m.id;couponPct=c.pct;couponTitle=c.title;} }
+  const base=sum-coupon; const bonus=S.useBonus?Math.min(p.bonus,Math.floor(base*0.3)):0;
+  return {sum,coupon,couponId,couponPct,couponTitle,bonus,pay:base-bonus,count:L.reduce((a,l)=>a+l.q,0)};
+}
+function add(key,d){ S.err=""; if(d>0&&tg&&tg.HapticFeedback){try{tg.HapticFeedback.impactOccurred("light");}catch(e){}} S.cart[key]=Math.max(0,(S.cart[key]||0)+d); if(!S.cart[key]) delete S.cart[key]; renderAll();}
+
+/* ===== РЕНДЕР ===== */
+function renderAll(){ if(!S.data) return; renderMenu(); if(S.screen==="prod")renderProd(); if(S.screen==="cart")renderCart(); if(S.screen==="book")renderBook(); if(S.screen==="bonus")renderBonus(); if(S.screen==="info")renderInfo(); if(S.screen==="track")renderTrack(); }
+function renderMenu(){
+  const p=S.data.profile; const ss=shopState();
+  $("#shopSub").textContent=ss.known?(ss.open?"Відчинено до "+ss.close:"Зараз зачинено"):"Кав'ярня"; $("#bonusChip").textContent=p.bonus+" бонусів";
+  const win=p.coupons.find(c=>c.active); $("#promo").classList.toggle("hide",!win);
+  const cats=["Популярне",...new Set(S.data.menu.map(m=>m.cat))];
+  $("#cats").innerHTML=cats.map(c=>`<button class="pill ${c===S.cat?"on":""}" data-cat="${esc(c)}">${esc(c)}</button>`).join("");
+  const q=S.q.trim().toLowerCase();
+  let list=S.data.menu.filter(m=>q?(m.name+" "+m.tags+" "+m.desc).toLowerCase().includes(q):(S.cat==="Популярне"?m.pop:m.cat===S.cat));
+  $("#items").innerHTML=list.length?list.map(m=>`<div class="card" style="overflow:hidden">
+    <div class="pic" data-prod="${m.id}">${pic(m)}</div>
+    <div style="padding:10px 10px 10px 12px"><button data-prod="${m.id}" style="background:none;border:0;color:var(--text);font-weight:700;font-size:14px;padding:0;text-align:left">${esc(m.name)}</button>
+    <div style="color:var(--mute);font-size:12px;margin:2px 0 8px">${esc(m.desc.slice(0,28))}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between"><b style="font-size:15px">${money(m.price)}</b><button class="sq acc" data-add="${m.id}" aria-label="Додати ${esc(m.name)}">+</button></div></div></div>`).join(""):`<div style="grid-column:1/3;color:var(--mute)">Нічого не знайдено</div>`;
+  const ao=activeOrder(); $("#activeOrder").classList.toggle("hide",!ao); if(ao) $("#activeTxt").textContent=ao.number+" · "+(ao.status||"у роботі");
+  const t=totals(); $("#cartDock").classList.toggle("hide",!t.count);
+  $("#cartCnt").textContent="Кошик · "+t.count+" поз."; $("#cartSum").textContent=money(t.sum);
+}
+function renderProd(){
+  const m=item(S.prod); const sz=S.opt.size, ml=S.opt.milk; const extra=(sz?15:0)+(ml==="Вівсяне"?20:0); const price=m.price+extra;
+  $("#prodBody").innerHTML=`<div class="pic" style="height:200px;border-radius:var(--r);font-size:64px">${pic(m)}</div>
+  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><h1 style="font-size:24px">${esc(m.name)}</h1><b style="color:var(--acc);font-size:18px">${money(price)}</b></div>
+  <div style="color:var(--soft)">${esc(m.desc)}</div>
+  ${m.cat==="Кава"?`<div><div class="cap" style="margin-bottom:8px">Об'єм</div><div class="row"><button class="pill ${!sz?"on":""}" data-size="0" style="flex:1">250 мл</button><button class="pill ${sz?"on":""}" data-size="1" style="flex:1">350 мл · +15 ₴</button></div></div>
+  <div><div class="cap" style="margin-bottom:8px">Молоко</div><div class="row">${["Звичайне","Вівсяне","Безлактозне"].map(x=>`<button class="pill ${ml===x?"on":""}" data-milk="${x}">${x}${x==="Вівсяне"?" · +20 ₴":""}</button>`).join("")}</div></div>`:""}
+  <div class="card" style="padding:12px 14px;display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between"><span style="color:var(--mute)">Алергени</span><b>${esc(m.allergens)}</b></div></div>`;
+  $("#prodDock").innerHTML=`<div style="display:flex;gap:10px;align-items:center"><div style="display:flex;align-items:center;gap:2px"><button class="sq" id="pMinus" style="height:52px">−</button><b style="min-width:24px;text-align:center">${S.opt.qty}</b><button class="sq" id="pPlus" style="height:52px">+</button></div>
+  <button class="btn" id="pAdd" style="flex:1"><span>Додати</span><span>${money(price*S.opt.qty)}</span></button></div>`;
+  $("#pMinus").onclick=()=>{S.opt.qty=Math.max(1,S.opt.qty-1);renderProd();}; $("#pPlus").onclick=()=>{S.opt.qty++;renderProd();};
+  $("#pAdd").onclick=()=>{const key=[m.id,sz,ml].join("|"); S.cartExtra=S.cartExtra||{}; S.cartExtra[key]=extra; add(key,S.opt.qty); toast("Додано в кошик"); go("menu");};
+}
+function hoursFor(d){
+  const hrs=(S.data&&S.data.info&&S.data.info.hours)||[]; const dow=d.getDay();
+  const row=(dow===0||dow===6)?(hrs[1]||hrs[0]):hrs[0]; if(!row) return null;
+  const m=String(row[1]).match(/(\d{1,2}):(\d{2})\D+(\d{1,2}):(\d{2})/); if(!m) return null;
+  let o=+m[1]*60+ +m[2], c=+m[3]*60+ +m[4]; if(c<=o) c+=1440; return [o,c,m[1].padStart(2,"0")+":"+m[2],m[3].padStart(2,"0")+":"+m[4]];
+}
+function shopState(){
+  const now=new Date(), h=hoursFor(now); if(!h) return {open:true,known:false};
+  const t=now.getHours()*60+now.getMinutes();
+  if(t>=h[0]&&t<h[1]) return {open:true,known:true,close:h[3]};
+  if(t<h[0]) return {open:false,known:true,text:"Зараз зачинено. Відкриємось сьогодні о "+h[2]};
+  const tm=new Date(now.getTime()+864e5), h2=hoursFor(tm);
+  return {open:false,known:true,text:"Зараз зачинено. Відкриємось завтра"+(h2?" о "+h2[2]:"")};
+}
+function pickupOptions(){
+  const now=new Date(), dow=now.getDay(), hrs=(S.data.info&&S.data.info.hours)||[];
+  const row=(dow===0||dow===6)?(hrs[1]||hrs[0]):hrs[0]; let close="21:00";
+  if(row){const m=String(row[1]).match(/(\d{1,2}:\d{2})\D+(\d{1,2}:\d{2})/); if(m) close=m[2];}
+  const [ch,cm]=close.split(":").map(Number), closeMin=ch*60+cm;
+  let t=now.getHours()*60+now.getMinutes()+15; t=Math.ceil(t/30)*30; const out=["Якнайшвидше"];
+  while(out.length<5&&t<=closeMin-10){out.push(String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0")); t+=30;}
+  return out;
+}
+function renderCart(){
+  const L=lines(), t=totals(), p=S.data.profile;
+  const ss=shopState();
+  if(!L.length){ $("#cartBody").innerHTML=`<div style="color:var(--mute);text-align:center;padding:40px 0">Кошик порожній</div>`; $("#orderBtn").disabled=true; $("#orderSum").textContent=""; return; }
+  $("#orderBtn").disabled=false; $("#orderBtn span:first-child").textContent=ss.open?"Оформити замовлення":"Зараз зачинено";
+  const warn=(!ss.open?`<div class="card" style="border-color:#C0563B;padding:12px 14px"><b style="color:#E8967F">Замовлення зараз не приймаються</b><div style="color:var(--soft);margin-top:4px">${esc(ss.text)}. Кошик збережеться.</div></div>`:"")+(S.err?`<div class="card" style="border-color:#C0563B;padding:12px 14px"><b style="color:#E8967F">Не вдалося оформити</b><div style="color:var(--soft);margin-top:4px">${esc(S.err)}</div></div>`:"");
+  const win=t.couponId?{item:t.couponId,pct:t.couponPct,title:t.couponTitle}:null;
+  const upsell=S.data.menu.filter(m=>!L.find(l=>l.m.id===m.id)).slice(0,2);
+  $("#cartBody").innerHTML=warn+`<div class="card" style="padding:4px 12px">${L.map(l=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)">
+    <div class="pic" style="width:52px;height:52px;border-radius:12px;flex:none">${pic(l.m)}</div>
+    <div style="flex:1;min-width:0"><b>${esc(l.m.name)}</b><div style="color:var(--mute);font-size:12px">${money(l.price)}${win&&win.item===l.m.id?" · купон −"+win.pct+"%":""}</div></div>
+    <div style="display:flex;align-items:center;gap:4px"><button class="sq" data-dec="${l.k}" aria-label="Менше">−</button><b style="min-width:18px;text-align:center">${l.q}</b><button class="sq" data-inc="${l.k}" aria-label="Більше">+</button></div></div>`).join("")}</div>
+  <div><div class="cap" style="margin-bottom:8px">До цього пасує</div><div class="row">${upsell.map(m=>`<div class="card" style="flex:none;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px"><div><b style="font-size:13px">${esc(m.name)}</b><div style="color:var(--mute);font-size:12px">${money(m.price)}</div></div><button class="sq acc" data-add="${m.id}" aria-label="Додати ${esc(m.name)}">+</button></div>`).join("")}</div></div>
+  ${t.coupon?`<div class="card" style="border-color:var(--acc);padding:12px 14px;display:flex;align-items:center"><div style="flex:1"><b>Купон «${esc(win.title)}»</b><div style="color:var(--mute);font-size:12px">−${win.pct}% застосовано</div></div><b style="color:var(--acc2)">−${money(t.coupon)}</b></div>`:""}
+  <div class="card" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between"><div><b>Списати бонуси</b><div style="color:var(--mute);font-size:12px">Доступно ${p.bonus}, до 30% суми</div></div><button class="sw ${S.useBonus?"on":""}" id="sw" role="switch" aria-checked="${S.useBonus}" aria-label="Списати бонуси"><i></i></button></div>
+  <div><div class="cap" style="margin-bottom:8px">Коли забрати</div><div class="row">${pickupOptions().map(x=>`<button class="pill ${S.pickup===x?"on":""}" data-pick="${x}">${x}</button>`).join("")}</div></div>
+  <input type="text" id="comment" maxlength="300" placeholder="Коментар до замовлення" value="${esc(S.comment)}" aria-label="Коментар">
+  <div class="card sum" style="padding:12px 14px"><div><span>Сума</span><span>${money(t.sum)}</span></div>${t.coupon?`<div><span>Купон</span><span>−${money(t.coupon)}</span></div>`:""}${t.bonus?`<div><span>Бонуси</span><span>−${money(t.bonus)}</span></div>`:""}<div class="t"><span>До сплати</span><span>${money(t.pay)}</span></div><div style="color:var(--mute);font-size:12px;padding-top:8px">Підсумок орієнтовний: точну суму покаже оформлене замовлення.</div></div>`;
+  $("#orderSum").textContent=money(t.pay);
+}
+async function placeOrder(){
+  const _s=shopState(); if(!_s.open){ toast("⛔ "+_s.text+". Кошик збережено — замовте, коли ми відкриємось.",9000); if(tg&&tg.HapticFeedback){try{tg.HapticFeedback.notificationOccurred("warning");}catch(e){}} return; }
+  if(S.busy) return; S.busy=true; const ob=$("#orderBtn"); ob.disabled=true; ob.querySelector("span:first-child").textContent="Надсилаємо…";
+  const t=totals(), L=lines();
+  let order={number:"COFFEE-"+new Date().toISOString().slice(8,10)+new Date().toISOString().slice(5,7)+"-DEMO",status:"cooking",pickup:S.pickup,total:t.pay,items:L.map(l=>({name:l.m.name,qty:l.q,price:l.price}))};
+  try{ const r=await api("order",{items:L.map(l=>({id:l.m.id,qty:l.q,key:l.k})),pickup:S.pickup,comment:S.comment,useBonus:S.useBonus}); if(r&&r.order) order=r.order; }
+  catch(e){ S.busy=false; ob.disabled=false; ob.querySelector("span:first-child").textContent="Оформити замовлення"; const em=(e.message&&/[А-Яа-яІіЇїЄєҐґ]/.test(e.message))?e.message:"Немає зв'язку із закладом. Спробуйте ще раз."; S.err=em; toast(em,9000); renderCart(); return; }
+  S.busy=false; ob.disabled=false; ob.querySelector("span:first-child").textContent="Оформити замовлення";
+  if(tg&&tg.HapticFeedback){try{tg.HapticFeedback.notificationOccurred("success");}catch(e){}}
+  S.err=""; order.state=order.state||"new"; S.tick=0; S.last=order; S.cart={}; S.cartExtra={}; S.comment=""; go("track");
+}
+function renderTrack(){
+  const o=S.last; if(!o) return; $("#ordNum").textContent=o.number;
+  const st=o.state||"new";
+  const H={new:["Чекаємо підтвердження закладу","Зазвичай це кілька хвилин"],accepted:["Готуємо ваше замовлення","Бариста вже працює над напоями"],ready:["Замовлення готове!","Можна забирати"],cancelled:["Замовлення скасовано","Бонуси й купон повернуто, якщо їх використовували"]}[st]||["Замовлення",""];
+  const step=(done,cur,title,sub)=>`<div style="display:flex;gap:14px;padding:8px 0"><div style="width:26px;height:26px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;${done?"background:var(--acc);color:var(--on)":"border:2px solid "+(cur?"var(--acc)":"var(--line)")}">${done?"✓":(cur?'<i style="width:10px;height:10px;border-radius:50%;background:var(--acc)"></i>':"")}</div><div><b style="${!done&&!cur?"color:var(--mute)":""}">${title}</b>${sub?`<div style="color:var(--mute);font-size:12px">${sub}</div>`:""}</div></div>`;
+  const steps=st==="cancelled"
+    ? step(true,false,"Замовлення надіслано","")+step(false,false,"Скасовано закладом","")
+    : step(true,false,"Замовлення надіслано","")
+     +step(st==="accepted"||st==="ready",st==="new","Заклад прийняв",st==="new"?"Очікуємо підтвердження":"")
+     +step(st==="ready",st==="accepted","Готується",st==="accepted"?"Бариста вже працює над напоями":"")
+     +step(st==="ready",false,"Готово до видачі","");
+  $("#trackBody").innerHTML=`<div class="card" style="padding:20px;text-align:center;background:linear-gradient(135deg,#4A2E1D,#2A1A10)"><div style="font-family:'Unbounded',sans-serif;font-weight:700;font-size:20px">${H[0]}</div><div style="color:var(--soft);margin-top:6px">${H[1]}</div>${o.pickup?`<div style="color:var(--soft);margin-top:6px">Забрати: ${esc(o.pickup)}</div>`:""}</div>
+  <div class="card" style="padding:12px 14px">${steps}</div>
+  <div class="card sum" style="padding:12px 14px">${o.items.map(i=>`<div><span>${esc(i.name)}</span><span>${i.qty} шт.</span></div>`).join("")}<div class="t"><span>До сплати</span><span>${money(o.total)}</span></div></div>
+  ${st==="ready"?`<div class="card" style="border-color:var(--acc);padding:12px 14px;color:var(--acc2);font-weight:600">Бонуси за це замовлення вже нараховані.</div>`:""}`;
+}
+/* ===== Живий статус замовлення ===== */
+let pollT=null;
+function stopPoll(){ if(pollT){clearInterval(pollT);pollT=null;} }
+function startPoll(){ stopPoll(); pollT=setInterval(pollOrder,6000); }
+async function pollOrder(){
+  if(S.screen!=="track"||!S.last){stopPoll();return;}
+  try{
+    let m=null;
+    if(S.data===DEMO){ S.tick=(S.tick||0)+1; const stt=S.tick>=3?"ready":(S.tick>=1?"accepted":"new"); m={state:stt}; }
+    else { const r=await api("orders",{}); if(r&&Array.isArray(r.orders)){S.orders=r.orders; m=r.orders.find(o=>o.number===S.last.number); } }
+    if(m&&m.state&&m.state!==S.last.state){ S.last={...S.last,...m}; if(tg&&tg.HapticFeedback){try{tg.HapticFeedback.notificationOccurred("success");}catch(e){}} renderTrack(); }
+  }catch(e){}
+  if(S.last&&(S.last.state==="ready"||S.last.state==="cancelled")) stopPoll();
+}
+function activeOrder(){
+  const d=new Date(), today=String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0");
+  return (S.orders||[]).find(o=>(o.state==="new"||o.state==="accepted")&&(!o.date||o.date===today));
+}
+async function loadSlots(){
+  try{ const r=await api("slots",{day:S.day}); if(r&&r.slots){S.data.slots=r.slots;S.data.busy=r.busy||[];} }catch(e){}
+  if(S.data.busy.includes(S.slot)||!S.data.slots.includes(S.slot)) S.slot=S.data.slots.find(x=>!S.data.busy.includes(x))||"";
+  renderBook();
+}
+function renderBook(){
+  const names=["Нд","Пн","Вт","Ср","Чт","Пт","Сб"], d0=new Date();
+  $("#days").innerHTML=[0,1,2,3,4,5,6].map(i=>{const d=new Date(d0.getTime()+i*864e5);return `<button class="pill ${S.day===i?"on":""}" data-day="${i}" style="width:64px;min-height:64px;padding:0;border-radius:14px"><div style="font-size:11px;opacity:.75">${names[d.getDay()]}</div><div style="font-size:18px">${d.getDate()}</div></button>`}).join("");
+  $("#slots").innerHTML=S.data.slots.map(s=>{const b=S.data.busy.includes(s);return `<button class="pill slot ${S.slot===s&&!b?"on":""}" data-slot="${s}" style="padding:0;border-radius:12px" ${b?"disabled":""}>${s}</button>`}).join("");
+  $("#gNum").textContent=S.guests;
+  const d=new Date(d0.getTime()+S.day*864e5); $("#bookSum").textContent=d.toLocaleDateString("uk-UA",{weekday:"short",day:"numeric",month:"long"})+", "+S.slot+" · "+S.guests+" гості";
+}
+async function loadOrders(){
+  try{ const r=await api("orders",{}); if(r&&Array.isArray(r.orders)) S.orders=r.orders; else S.orders=(S.data===DEMO||!CONFIG.API_URL)?DEMO.orders:[]; }
+  catch(e){ S.orders=(S.data===DEMO)?DEMO.orders:[]; }
+  if(S.screen==="bonus") renderBonus(); if(S.screen==="menu") renderMenu();
+}
+function repeatOrder(i){
+  const o=(S.orders||[])[i]; if(!o) return; let ok=0,skip=0;
+  o.items.forEach(it=>{ if(it.id&&item(it.id)){ const k=it.id+"|0|Звичайне"; S.cart[k]=(S.cart[k]||0)+(it.qty||1); ok++; } else skip++; });
+  if(!ok){toast("Цих позицій зараз немає в меню");return;}
+  toast(skip?"Додано. Деяких позицій зараз немає":"Додано в кошик"); go("cart");
+}
+function renderBonus(){
+  const p=S.data.profile;
+  $("#bonusBody").innerHTML=`<div class="card" style="padding:18px;background:linear-gradient(135deg,#4A2E1D,#2A1A10 55%,#1C120B);border-color:#5A3B27">
+   <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><div class="cap" style="color:var(--acc2);font-weight:700">Рівень</div><div style="font-family:'Unbounded',sans-serif;font-weight:700;font-size:26px;margin-top:4px">${esc(p.level)}</div></div><div style="padding:6px 12px;border-radius:999px;background:rgba(217,162,103,.16);color:var(--acc2);font-weight:700;font-size:13px">Кешбек ${p.discount}%</div></div>
+   <div style="margin:22px 0 4px;display:flex;align-items:baseline;gap:8px"><span style="font-family:'Unbounded',sans-serif;font-weight:700;font-size:44px;line-height:1;color:var(--acc)">${p.bonus}</span><span style="color:var(--soft)">бонусів</span></div>
+   <div style="font-size:12.5px;color:var(--soft)">Згорять через 60 днів без замовлень</div></div>
+  <div class="card" style="padding:14px"><div style="display:flex;justify-content:space-between;margin-bottom:12px"><b>До рівня «Постійний»</b><span style="font-size:12px;color:var(--mute)">кешбек 7%</span></div>
+   <div style="font-size:12px;color:var(--mute);margin-bottom:6px">Замовлень: ${p.orders} з 10</div><div class="bar"><b style="width:${Math.min(100,p.orders*10)}%"></b></div>
+   <div style="font-size:12px;color:var(--mute);margin:12px 0 6px">Витрачено: ${p.spent} з 2000 ₴</div><div class="bar"><b style="width:${Math.min(100,p.spent/20)}%"></b></div>
+   <div style="font-size:12px;color:var(--mute);margin-top:12px">Достатньо виконати будь-яку з двох умов.</div></div>
+  <div><div class="cap" style="margin-bottom:8px">Мої купони</div><div style="display:flex;flex-direction:column;gap:10px">${p.coupons.map(c=>`<div class="card" style="display:flex;overflow:hidden;${c.active?"border-color:var(--acc)":"opacity:.85"}"><div style="width:84px;flex:none;display:flex;align-items:center;justify-content:center;background:${c.active?"rgba(217,162,103,.14)":"var(--tab)"};font-family:'Unbounded',sans-serif;font-weight:700;font-size:20px;color:${c.active?"var(--acc)":"var(--mute)"}">−${c.pct}%</div><div style="flex:1;padding:12px 14px;border-left:2px dashed #3A2C21"><b>${esc(c.title)}</b><div style="color:var(--mute);font-size:12px;margin:2px 0 ${c.active?"8px":"0"}">${esc(c.note)}</div>${c.active?`<button class="pill on" data-go="menu">Скористатись</button>`:""}</div></div>`).join("")}</div></div>
+  ${(S.orders&&S.orders.length)?`<div><div class="cap" style="margin-bottom:8px">Мої замовлення</div><div style="display:flex;flex-direction:column;gap:10px">${S.orders.slice(0,5).map((o,i)=>`<div class="card" style="padding:12px 14px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b style="font-size:13px">${esc(o.number)}</b><span style="color:var(--mute);font-size:12px">${esc(o.date||"")}</span></div><div style="color:var(--soft);margin:6px 0">${o.items.map(it=>esc(it.name)+(it.qty>1?" × "+it.qty:"")).join(", ")}</div><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="color:var(--mute);font-size:12px">${esc(o.status||"")} · ${money(o.total)}</span><button class="pill on" data-repeat="${i}">Повторити</button></div></div>`).join("")}</div></div>`:""}
+  <div><div class="cap" style="margin-bottom:8px">Рівні</div><div style="display:flex;flex-direction:column;gap:8px">${[["Гість","Від реєстрації","5%"],["Постійний","10 замовлень або 2000 ₴","7%"],["Свій","30 замовлень або 6000 ₴","10%"]].map(r=>`<div class="card lvl ${r[0]===p.level?"me":""}"><div style="flex:1"><b>${r[0]}</b><div style="color:var(--mute);font-size:12px">${r[1]}</div></div><b style="${r[0]===p.level?"color:var(--acc)":""}">${r[2]}</b></div>`).join("")}</div></div>`;
+}
+function renderInfo(){
+  const i=S.data.info;
+  $("#infoBody").innerHTML=`<div class="card" style="padding:18px;background:linear-gradient(135deg,#3A2418,#21140D)"><div style="font-family:'Unbounded',sans-serif;font-weight:700;font-size:22px">${esc(CONFIG.SHOP_NAME)}</div><div style="color:var(--soft);margin-top:6px">${esc(i.about)}</div></div>
+  <div class="card" style="padding:14px;display:flex;flex-direction:column;gap:12px">${i.hours.map(h=>`<div style="display:flex;justify-content:space-between"><span style="color:var(--mute)">${esc(h[0])}</span><b>${esc(h[1])}</b></div>`).join("")}</div>
+  <div class="card" style="padding:14px"><div style="color:var(--mute);font-size:12px">Адреса</div><b>${esc(i.address)}</b></div>
+  <button class="btn center ghost" id="askAdmin">Написати адміністратору</button>`;
+  $("#askAdmin").onclick=()=>{ if(tg&&tg.close){ toast("Напишіть боту в чаті"); setTimeout(()=>tg.close(),900);} else toast("Відкрийте міні-апп у Telegram"); };
+}
+
+/* ===== ПОДІЇ ===== */
+document.addEventListener("click",e=>{
+  const g=e.target.closest("[data-go]"); if(g){go(g.dataset.go);return;}
+  const t=e.target.closest("[data-tab]"); if(t){go(t.dataset.tab);return;}
+  const c=e.target.closest("[data-cat]"); if(c){S.cat=c.dataset.cat;S.q="";$("#q").value="";renderMenu();return;}
+  const a=e.target.closest("[data-add]"); if(a){add(a.dataset.add,1);return;}
+  const p=e.target.closest("[data-prod]"); if(p){S.prod=p.dataset.prod;S.opt={size:0,milk:"Звичайне",qty:1};go("prod");return;}
+  const sz=e.target.closest("[data-size]"); if(sz){S.opt.size=+sz.dataset.size;renderProd();return;}
+  const mk=e.target.closest("[data-milk]"); if(mk){S.opt.milk=mk.dataset.milk;renderProd();return;}
+  const inc=e.target.closest("[data-inc]"); if(inc){add(inc.dataset.inc,1);return;}
+  const dec=e.target.closest("[data-dec]"); if(dec){add(dec.dataset.dec,-1);return;}
+  const pk=e.target.closest("[data-pick]"); if(pk){S.pickup=pk.dataset.pick;renderCart();return;}
+  const dy=e.target.closest("[data-day]"); if(dy){S.day=+dy.dataset.day;renderBook();loadSlots();return;}
+  const sl=e.target.closest("[data-slot]"); if(sl&&!sl.disabled){S.slot=sl.dataset.slot;renderBook();return;}
+  const rp=e.target.closest("[data-repeat]"); if(rp){repeatOrder(+rp.dataset.repeat);return;}
+  if(e.target.closest("#sw")){S.useBonus=!S.useBonus;renderCart();return;}
+});
+$("#q").addEventListener("input",e=>{S.q=e.target.value;renderMenu();});
+$("#cartBtn").onclick=()=>go("cart");
+$("#activeOrder").onclick=()=>{const ao=activeOrder(); if(ao){S.last=ao; go("track");}};
+$("#bonusChip").onclick=()=>go("bonus");
+$("#orderBtn").onclick=placeOrder;
+document.addEventListener("input",e=>{if(e.target.id==="comment")S.comment=e.target.value;});
+$("#gMinus").onclick=()=>{S.guests=Math.max(1,S.guests-1);renderBook();};
+$("#gPlus").onclick=()=>{S.guests=Math.min(8,S.guests+1);renderBook();};
+$("#bookBtn").onclick=async()=>{
+  const ph=$("#phone").value.trim(); if(ph.replace(/\D/g,"").length<10){toast("Вкажіть телефон");return;}
+  if(!S.slot){toast("Оберіть вільний час");return;}
+  if(S.busy) return; S.busy=true; const bb=$("#bookBtn"); bb.textContent="Надсилаємо…"; bb.disabled=true;
+  try{const r=await api("booking",{day:S.day,slot:S.slot,guests:S.guests,phone:ph}); toast(r&&r.booking&&r.booking.number?("Бронь №"+r.booking.number+" надіслано"):"Заявку на бронь надіслано"); loadSlots();}
+  catch(e){toast(e.message&&/[А-Яа-яІіЇїЄєҐґ]/.test(e.message)?e.message:"Не вдалося забронювати",6000);}
+  S.busy=false; bb.textContent="Забронювати"; bb.disabled=false;
+};
+load();
+</script>
+</body>
+</html>
