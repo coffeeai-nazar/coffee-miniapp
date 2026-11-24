@@ -326,7 +326,7 @@ function totals(){
 function add(key,d){ S.err=""; if(d>0&&tg&&tg.HapticFeedback){try{tg.HapticFeedback.impactOccurred("light");}catch(e){}} S.cart[key]=Math.max(0,(S.cart[key]||0)+d); if(!S.cart[key]) delete S.cart[key]; renderAll();}
 
 /* ===== РЕНДЕР ===== */
-function renderAll(){ if(!S.data) return; renderMenu(); if(S.screen==="prod")renderProd(); if(S.screen==="cart")renderCart(); if(S.screen==="book")renderBook(); if(S.screen==="bonus")renderBonus(); if(S.screen==="info")renderInfo(); if(S.screen==="track")renderTrack(); }
+function renderAll(){ if(!S.data) return; const nm=(S.data.info&&S.data.info.name)||CONFIG.SHOP_NAME; if($("#shopName").textContent!==nm) $("#shopName").textContent=nm; renderMenu(); if(S.screen==="prod")renderProd(); if(S.screen==="cart")renderCart(); if(S.screen==="book")renderBook(); if(S.screen==="bonus")renderBonus(); if(S.screen==="info")renderInfo(); if(S.screen==="track")renderTrack(); }
 function renderMenu(){
   const p=S.data.profile; const ss=shopState();
   $("#shopSub").textContent=ss.known?(ss.open?"Відчинено до "+ss.close:"Зараз зачинено"):"Кав'ярня"; $("#bonusChip").textContent=p.bonus+" бонусів";
@@ -368,25 +368,29 @@ function renderProd(){
   $("#pMinus").onclick=()=>{S.opt.qty=Math.max(1,S.opt.qty-1);renderProd();}; $("#pPlus").onclick=()=>{S.opt.qty++;renderProd();};
   $("#pAdd").onclick=()=>{const key=[m.id,si>0?encodeURIComponent(sizes[si].l):"",mi>0?encodeURIComponent(milks[mi].l):""].join("|"); S.cartExtra=S.cartExtra||{}; S.cartExtra[key]=extra; add(key,S.opt.qty); toast("Додано в кошик"); go("menu");};
 }
+// години роботи на день d: [відкриття хв, закриття хв, "ГГ:ХХ", "ГГ:ХХ"], "closed" (вихідний) або null (невідомо)
+// info.week — 7 днів Пн..Нд з аркуша «Інфо» (той самий «Графік», за яким бот приймає замовлення)
 function hoursFor(d){
-  const hrs=(S.data&&S.data.info&&S.data.info.hours)||[]; const dow=d.getDay();
-  const row=(dow===0||dow===6)?(hrs[1]||hrs[0]):hrs[0]; if(!row) return null;
-  const m=String(row[1]).match(/(\d{1,2}):(\d{2})\D+(\d{1,2}):(\d{2})/); if(!m) return null;
+  const info=(S.data&&S.data.info)||{}; let a="", b="";
+  if(Array.isArray(info.week)&&info.week.length===7){ const x=info.week[(d.getDay()+6)%7]; if(!x) return null; if(x.closed) return "closed"; a=x.from; b=x.to; }
+  else { const hrs=info.hours||[], dow=d.getDay(); const row=(dow===0||dow===6)?(hrs[1]||hrs[0]):hrs[0]; if(!row) return null; if(/вихідн|зачин/i.test(String(row[0])+" "+String(row[1]))) return "closed"; const mm=String(row[1]).match(/(\d{1,2}:\d{2})\D+(\d{1,2}:\d{2})/); if(!mm) return null; a=mm[1]; b=mm[2]; }
+  const m=(a+"-"+b).match(/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/); if(!m) return null;
   let o=+m[1]*60+ +m[2], c=+m[3]*60+ +m[4]; if(c<=o) c+=1440; return [o,c,m[1].padStart(2,"0")+":"+m[2],m[3].padStart(2,"0")+":"+m[4]];
 }
 function shopState(){
   const now=new Date(), h=hoursFor(now); if(!h) return {open:true,known:false};
   const t=now.getHours()*60+now.getMinutes();
-  if(t>=h[0]&&t<h[1]) return {open:true,known:true,close:h[3]};
-  if(t<h[0]) return {open:false,known:true,text:"Зараз зачинено. Відкриємось сьогодні о "+h[2]};
-  const tm=new Date(now.getTime()+864e5), h2=hoursFor(tm);
-  return {open:false,known:true,text:"Зараз зачинено. Відкриємось завтра"+(h2?" о "+h2[2]:"")};
+  if(h!=="closed"){
+    if(t>=h[0]&&t<h[1]) return {open:true,known:true,close:h[3]};
+    if(t<h[0]) return {open:false,known:true,text:"Зараз зачинено. Відкриємось сьогодні о "+h[2]};
+  }
+  const DW=["у неділю","у понеділок","у вівторок","у середу","у четвер","у п’ятницю","у суботу"];
+  for(let k=1;k<=7;k++){ const dd=new Date(now.getTime()+k*864e5), h2=hoursFor(dd); if(h2&&h2!=="closed") return {open:false,known:true,text:"Зараз зачинено. Відкриємось "+(k===1?"завтра":DW[dd.getDay()])+" о "+h2[2]}; }
+  return {open:false,known:true,text:h==="closed"?"Сьогодні вихідний":"Зараз зачинено"};
 }
 function pickupOptions(){
-  const now=new Date(), dow=now.getDay(), hrs=(S.data.info&&S.data.info.hours)||[];
-  const row=(dow===0||dow===6)?(hrs[1]||hrs[0]):hrs[0]; let close="21:00";
-  if(row){const m=String(row[1]).match(/(\d{1,2}:\d{2})\D+(\d{1,2}:\d{2})/); if(m) close=m[2];}
-  const [ch,cm]=close.split(":").map(Number), closeMin=ch*60+cm;
+  const now=new Date(), h=hoursFor(now);
+  const closeMin=(h&&h!=="closed")?h[1]:21*60;
   let t=now.getHours()*60+now.getMinutes()+15; t=Math.ceil(t/30)*30; const out=["Якнайшвидше"];
   while(out.length<5&&t<=closeMin-10){out.push(String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0")); t+=30;}
   return out;
@@ -494,12 +498,28 @@ function renderBonus(){
   <div><div class="cap" style="margin-bottom:8px">Рівні</div><div style="display:flex;flex-direction:column;gap:8px">${[["Гість","Від реєстрації","5%"],["Постійний","10 замовлень або 2000 ₴","7%"],["Свій","30 замовлень або 6000 ₴","10%"]].map(r=>`<div class="card lvl ${r[0]===p.level?"me":""}"><div style="flex:1"><b>${r[0]}</b><div style="color:var(--mute);font-size:12px">${r[1]}</div></div><b style="${r[0]===p.level?"color:var(--acc)":""}">${r[2]}</b></div>`).join("")}</div></div>`;
 }
 function renderInfo(){
-  const i=S.data.info;
-  $("#infoBody").innerHTML=`<div class="card" style="padding:18px;background:linear-gradient(135deg,#3A2418,#21140D)"><div style="font-family:'Unbounded',sans-serif;font-weight:700;font-size:22px">${esc(CONFIG.SHOP_NAME)}</div><div style="color:var(--soft);margin-top:6px">${esc(i.about)}</div></div>
-  <div class="card" style="padding:14px;display:flex;flex-direction:column;gap:12px">${i.hours.map(h=>`<div style="display:flex;justify-content:space-between"><span style="color:var(--mute)">${esc(h[0])}</span><b>${esc(h[1])}</b></div>`).join("")}</div>
-  <div class="card" style="padding:14px"><div style="color:var(--mute);font-size:12px">Адреса</div><b>${esc(i.address)}</b></div>
+  // усе з аркуша «Інфо» (адмінка → settings.save); кнопки показуються лише для заповнених полів
+  const i=S.data.info||{}; const v=k=>String(i[k]==null?"":i[k]).trim();
+  const name=v("name")||CONFIG.SHOP_NAME, tagline=v("tagline"), desc=("description" in i)?v("description"):v("about");
+  const hrsRows=(v("hours_weekdays")||v("hours_weekend"))?[["Будні (Пн–Пт)",v("hours_weekdays")||"—"],["Вихідні (Сб–Нд)",v("hours_weekend")||"—"]]:(i.hours||[]);
+  const tel=v("phone").replace(/[^\d+]/g,"");
+  const nick=x=>x.replace(/^@/,"");
+  const ig=v("instagram")?(/^https?:\/\//i.test(v("instagram"))?v("instagram"):"https://instagram.com/"+encodeURIComponent(nick(v("instagram")))):"";
+  const map=/^https:\/\//i.test(v("map_url"))?v("map_url"):"";
+  const adm=/^@?[A-Za-z0-9_]{5,32}$/.test(v("admin_username"))?"https://t.me/"+nick(v("admin_username")):"";
+  const ss=shopState();
+  $("#infoBody").innerHTML=`<div class="card" style="padding:18px;background:linear-gradient(135deg,#3A2418,#21140D)"><div style="font-family:'Unbounded',sans-serif;font-weight:700;font-size:22px">${esc(name)}</div>${tagline?`<div style="color:var(--acc2);margin-top:6px;font-weight:600">${esc(tagline)}</div>`:""}${desc?`<div style="color:var(--soft);margin-top:6px;white-space:pre-line">${esc(desc)}</div>`:""}</div>
+  ${hrsRows.length?`<div class="card" style="padding:14px;display:flex;flex-direction:column;gap:12px">${ss.known?`<b style="color:${ss.open?"var(--acc2)":"#E8967F"}">${ss.open?"Відчинено до "+esc(ss.close):esc(ss.text)}</b>`:""}${hrsRows.map(h=>`<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--mute)">${esc(h[0])}</span><b style="text-align:right">${esc(h[1])}</b></div>`).join("")}</div>`:""}
+  ${v("address")?`<div class="card" style="padding:14px"><div style="color:var(--mute);font-size:12px">Адреса</div><b>${esc(v("address"))}</b></div>`:""}
+  ${tel.replace(/\D/g,"").length>=7?`<a class="btn center" href="tel:${esc(tel)}" style="text-decoration:none">Подзвонити · ${esc(v("phone"))}</a>`:""}
+  ${ig?`<button class="btn center ghost" data-link="${esc(ig)}">Instagram</button>`:""}
+  ${map?`<button class="btn center ghost" data-link="${esc(map)}">Показати на карті</button>`:""}
   <button class="btn center ghost" id="askAdmin">Написати адміністратору</button>`;
-  $("#askAdmin").onclick=()=>{ if(tg&&tg.close){ toast("Напишіть боту в чаті"); setTimeout(()=>tg.close(),900);} else toast("Відкрийте міні-апп у Telegram"); };
+  $$("#infoBody [data-link]").forEach(b=>b.onclick=()=>{ const u=b.dataset.link; if(tg&&tg.openLink) tg.openLink(u); else window.open(u,"_blank","noopener"); });
+  $("#askAdmin").onclick=()=>{
+    if(adm){ if(tg&&tg.openTelegramLink) tg.openTelegramLink(adm); else window.open(adm,"_blank","noopener"); return; }
+    if(tg&&tg.close){ toast("Напишіть боту в чаті"); setTimeout(()=>tg.close(),900);} else toast("Відкрийте міні-апп у Telegram");
+  };
 }
 
 /* ===== ПОДІЇ ===== */
