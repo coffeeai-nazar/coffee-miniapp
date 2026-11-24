@@ -314,6 +314,7 @@ function go(name){
 }
 const item=id=>S.data.menu.find(m=>m.id===id);
 function lines(){return Object.entries(S.cart).filter(([,q])=>q>0).map(([k,q])=>{const id=k.split("|")[0];const m=item(id);return {k,m,q,price:m.price+(S.cartExtra&&S.cartExtra[k]||0)};});}
+function optText(k){return k.split("|").slice(1).map(x=>{try{return decodeURIComponent(x)}catch(e){return x}}).filter(Boolean).join(", ");}
 function totals(){
   const L=lines(), p=S.data.profile; const sum=L.reduce((a,l)=>a+l.price*l.q,0);
   let coupon=0,couponId=null,couponPct=0,couponTitle=""; const c=p.coupons.find(c=>c.active&&c.pct);
@@ -344,17 +345,28 @@ function renderMenu(){
   $("#cartCnt").textContent="Кошик · "+t.count+" поз."; $("#cartSum").textContent=money(t.sum);
 }
 function renderProd(){
-  const m=item(S.prod); const sz=S.opt.size, ml=S.opt.milk; const extra=(sz?15:0)+(ml==="Вівсяне"?20:0); const price=m.price+extra;
+  const m=item(S.prod); const sizes=m.sizes||[], milks=m.milks||[];
+  // варіанти об'єму й молока з доплатою беруться з меню (адмінка → sizes_json / milks_json); сервер рахує ціну за тими самими даними
+  const si=Math.min(S.opt.size||0,Math.max(0,sizes.length-1)), mi=Math.min(S.opt.milk||0,Math.max(0,milks.length-1));
+  const extra=(sizes[si]?+sizes[si].a||0:0)+(milks[mi]?+milks[mi].a||0:0); const price=m.price+extra;
+  const optBtn=(o,i,on,attr)=>`<button class="pill ${on?"on":""}" ${attr}="${i}" style="flex:1">${esc(o.l)}${+o.a?" · +"+(+o.a)+" ₴":""}</button>`;
+  const L=v=>Array.isArray(v)?v:String(v||"").split(/[,;]/).map(x=>x.trim()).filter(x=>x&&x!=="—"&&x!=="-");
+  const tags=L(m.tags), alg=L(m.allergens);
+  const nut=[["ккал",m.kcal,""],["білки",m.prot," г"],["жири",m.fat," г"],["вуглеводи",m.carb," г"]].filter(x=>x[1]!=null&&x[1]!=="");
+  const meta=[m.weight, m.caf!=null&&m.caf!==""?m.caf+" мг кофеїну":"", m.prep!=null&&m.prep!==""?"≈ "+m.prep+" хв":""].filter(Boolean).join(" · ");
   $("#prodBody").innerHTML=`<div class="pic" style="height:200px;border-radius:var(--r);font-size:64px">${pic(m)}</div>
   <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><h1 style="font-size:24px">${esc(m.name)}</h1><b style="color:var(--acc);font-size:18px">${money(price)}</b></div>
+  ${tags.length?`<div class="row">${tags.map(t=>`<span class="pill on" style="pointer-events:none;font-size:12px">${esc(t)}</span>`).join("")}</div>`:""}
   <div style="color:var(--soft)">${esc(m.desc)}</div>
-  ${m.cat==="Кава"?`<div><div class="cap" style="margin-bottom:8px">Об'єм</div><div class="row"><button class="pill ${!sz?"on":""}" data-size="0" style="flex:1">250 мл</button><button class="pill ${sz?"on":""}" data-size="1" style="flex:1">350 мл · +15 ₴</button></div></div>
-  <div><div class="cap" style="margin-bottom:8px">Молоко</div><div class="row">${["Звичайне","Вівсяне","Безлактозне"].map(x=>`<button class="pill ${ml===x?"on":""}" data-milk="${x}">${x}${x==="Вівсяне"?" · +20 ₴":""}</button>`).join("")}</div></div>`:""}
-  <div class="card" style="padding:12px 14px;display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between"><span style="color:var(--mute)">Алергени</span><b>${esc(m.allergens)}</b></div></div>`;
+  ${meta?`<div style="color:var(--mute);font-size:13px">${esc(meta)}</div>`:""}
+  ${sizes.length>1?`<div><div class="cap" style="margin-bottom:8px">Об'єм</div><div class="row">${sizes.map((o,i)=>optBtn(o,i,i===si,"data-size")).join("")}</div></div>`:""}
+  ${milks.length>1?`<div><div class="cap" style="margin-bottom:8px">Молоко</div><div class="row">${milks.map((o,i)=>optBtn(o,i,i===mi,"data-milk")).join("")}</div></div>`:""}
+  ${nut.length?`<div class="card" style="padding:12px 8px;display:grid;grid-template-columns:repeat(${nut.length},1fr);text-align:center">${nut.map(x=>`<div><b>${esc(x[1])}${x[2]}</b><div style="color:var(--mute);font-size:12px">${x[0]}</div></div>`).join("")}</div>`:""}
+  <div class="card" style="padding:12px 14px;display:flex;flex-direction:column;gap:10px"><div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--mute)">Алергени</span><b style="text-align:right">${esc(alg.join(", ")||"—")}</b></div></div>`;
   $("#prodDock").innerHTML=`<div style="display:flex;gap:10px;align-items:center"><div style="display:flex;align-items:center;gap:2px"><button class="sq" id="pMinus" style="height:52px">−</button><b style="min-width:24px;text-align:center">${S.opt.qty}</b><button class="sq" id="pPlus" style="height:52px">+</button></div>
   <button class="btn" id="pAdd" style="flex:1"><span>Додати</span><span>${money(price*S.opt.qty)}</span></button></div>`;
   $("#pMinus").onclick=()=>{S.opt.qty=Math.max(1,S.opt.qty-1);renderProd();}; $("#pPlus").onclick=()=>{S.opt.qty++;renderProd();};
-  $("#pAdd").onclick=()=>{const key=[m.id,sz,ml].join("|"); S.cartExtra=S.cartExtra||{}; S.cartExtra[key]=extra; add(key,S.opt.qty); toast("Додано в кошик"); go("menu");};
+  $("#pAdd").onclick=()=>{const key=[m.id,si>0?encodeURIComponent(sizes[si].l):"",mi>0?encodeURIComponent(milks[mi].l):""].join("|"); S.cartExtra=S.cartExtra||{}; S.cartExtra[key]=extra; add(key,S.opt.qty); toast("Додано в кошик"); go("menu");};
 }
 function hoursFor(d){
   const hrs=(S.data&&S.data.info&&S.data.info.hours)||[]; const dow=d.getDay();
@@ -389,7 +401,7 @@ function renderCart(){
   const upsell=S.data.menu.filter(m=>!L.find(l=>l.m.id===m.id)).slice(0,2);
   $("#cartBody").innerHTML=warn+`<div class="card" style="padding:4px 12px">${L.map(l=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)">
     <div class="pic" style="width:52px;height:52px;border-radius:12px;flex:none">${pic(l.m)}</div>
-    <div style="flex:1;min-width:0"><b>${esc(l.m.name)}</b><div style="color:var(--mute);font-size:12px">${money(l.price)}${win&&win.item===l.m.id?" · купон −"+win.pct+"%":""}</div></div>
+    <div style="flex:1;min-width:0"><b>${esc(l.m.name)}</b>${optText(l.k)?`<div style="color:var(--soft);font-size:12px">${esc(optText(l.k))}</div>`:""}<div style="color:var(--mute);font-size:12px">${money(l.price)}${win&&win.item===l.m.id?" · купон −"+win.pct+"%":""}</div></div>
     <div style="display:flex;align-items:center;gap:4px"><button class="sq" data-dec="${l.k}" aria-label="Менше">−</button><b style="min-width:18px;text-align:center">${l.q}</b><button class="sq" data-inc="${l.k}" aria-label="Більше">+</button></div></div>`).join("")}</div>
   <div><div class="cap" style="margin-bottom:8px">До цього пасує</div><div class="row">${upsell.map(m=>`<div class="card" style="flex:none;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px"><div><b style="font-size:13px">${esc(m.name)}</b><div style="color:var(--mute);font-size:12px">${money(m.price)}</div></div><button class="sq acc" data-add="${m.id}" aria-label="Додати ${esc(m.name)}">+</button></div>`).join("")}</div></div>
   ${t.coupon?`<div class="card" style="border-color:var(--acc);padding:12px 14px;display:flex;align-items:center"><div style="flex:1"><b>Купон «${esc(win.title)}»</b><div style="color:var(--mute);font-size:12px">−${win.pct}% застосовано</div></div><b style="color:var(--acc2)">−${money(t.coupon)}</b></div>`:""}
@@ -496,9 +508,9 @@ document.addEventListener("click",e=>{
   const t=e.target.closest("[data-tab]"); if(t){go(t.dataset.tab);return;}
   const c=e.target.closest("[data-cat]"); if(c){S.cat=c.dataset.cat;S.q="";$("#q").value="";renderMenu();return;}
   const a=e.target.closest("[data-add]"); if(a){add(a.dataset.add,1);return;}
-  const p=e.target.closest("[data-prod]"); if(p){S.prod=p.dataset.prod;S.opt={size:0,milk:"Звичайне",qty:1};go("prod");return;}
+  const p=e.target.closest("[data-prod]"); if(p){S.prod=p.dataset.prod;S.opt={size:0,milk:0,qty:1};go("prod");return;}
   const sz=e.target.closest("[data-size]"); if(sz){S.opt.size=+sz.dataset.size;renderProd();return;}
-  const mk=e.target.closest("[data-milk]"); if(mk){S.opt.milk=mk.dataset.milk;renderProd();return;}
+  const mk=e.target.closest("[data-milk]"); if(mk){S.opt.milk=+mk.dataset.milk;renderProd();return;}
   const inc=e.target.closest("[data-inc]"); if(inc){add(inc.dataset.inc,1);return;}
   const dec=e.target.closest("[data-dec]"); if(dec){add(dec.dataset.dec,-1);return;}
   const pk=e.target.closest("[data-pick]"); if(pk){S.pickup=pk.dataset.pick;renderCart();return;}
