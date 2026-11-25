@@ -97,19 +97,10 @@ input[type=text],input[type=tel]{width:100%;min-height:48px;padding:0 14px;backg
 
 <!-- БРОНЬ -->
 <section class="screen" id="s-book">
- <div class="top"><h1>Бронювання столика</h1></div>
- <div class="scroll">
-  <div><div class="cap" style="margin-bottom:8px">Дата</div><div class="row" id="days"></div></div>
-  <div><div class="cap" style="margin-bottom:8px">Вільний час</div><div class="grid" style="grid-template-columns:repeat(4,1fr);gap:8px" id="slots"></div>
-   <div class="cap" style="text-transform:none;letter-spacing:0;margin-top:8px">Показуємо тільки вільні години.</div></div>
-  <div class="card" style="padding:10px 12px;display:flex;align-items:center;justify-content:space-between">
-   <div><b>Гості</b><div style="color:var(--mute);font-size:12px">До 8 осіб</div></div>
-   <div style="display:flex;align-items:center;gap:4px"><button class="sq" id="gMinus" aria-label="Менше">−</button><b id="gNum" style="min-width:24px;text-align:center;font-size:16px">2</b><button class="sq" id="gPlus" aria-label="Більше">+</button></div></div>
-  <label><div class="cap" style="margin-bottom:8px">Телефон</div><input type="tel" id="phone" placeholder="+380"></label>
-  <div class="card" style="padding:12px 14px"><b>Ваша бронь</b><div style="color:var(--soft);margin-top:4px" id="bookSum"></div>
-   <div style="color:var(--mute);font-size:12px;margin-top:4px">Адміністратор підтвердить бронь, а за 2 години ми нагадаємо.</div></div>
- </div>
- <div class="dock"><button class="btn center" id="bookBtn">Забронювати</button></div>
+ <!-- покрокове бронювання: 4 кроки, налаштування й зайнятість приходять у bootstrap (booking) -->
+ <div class="top" style="flex-direction:column;align-items:stretch;gap:10px"><h1>Бронювання столика</h1><div id="bkProg"></div></div>
+ <div class="scroll" id="bkBody"></div>
+ <div class="dock" id="bkDock"></div>
 </section>
 
 <!-- БОНУСИ -->
@@ -460,17 +451,123 @@ function activeOrder(){
   const d=new Date(), today=String(d.getDate()).padStart(2,"0")+"."+String(d.getMonth()+1).padStart(2,"0");
   return (S.orders||[]).find(o=>(o.state==="new"||o.state==="accepted")&&(!o.date||o.date===today));
 }
+/* ===== БРОНЮВАННЯ: 4 кроки ===== */
+// налаштування (зони, час, дні, максимум гостей, дитячі стільці, нагадування) і зайнятість приходять у bootstrap → booking;
+// якщо сервер ще старий або це демо — запасний варіант зі старих полів
+function bkCfg(){
+  const b=S.data&&S.data.booking;
+  if(b&&Array.isArray(b.zones)&&b.zones.length&&Array.isArray(b.days)&&b.days.length) return b;
+  if(!S.bkFallback){
+    const d0=new Date(), WD=["Нд","Пн","Вт","Ср","Чт","Пт","Сб"], pad=n=>String(n).padStart(2,"0");
+    const days=[0,1,2,3,4,5,6].map(i=>{const d=new Date(d0.getTime()+i*864e5);return {day:i,date:d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()),wd:WD[d.getDay()],dom:d.getDate()};});
+    S.bkFallback={zones:[{name:"Зала",seats:0}],times:(S.data&&S.data.slots)||["10:00","12:00","14:00","16:00","18:00","19:00","20:00"],daysAhead:7,maxGuests:8,kidsChairs:false,reminders:true,remindMin:120,days,busy:{},phone:"",name:""};
+  }
+  return S.bkFallback;
+}
+function bkState(){
+  if(!S.bk){
+    const c=bkCfg(), u=tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user;
+    S.bk={step:1,zone:c.zones.length===1?c.zones[0].name:"",day:0,time:"",guests:Math.min(2,c.maxGuests),kids:0,name:c.name||(u?[u.first_name,u.last_name].filter(Boolean).join(" "):""),phone:c.phone||"",note:"",done:null,sending:false};
+  }
+  return S.bk;
+}
+const bkBusy=(c,date,zone)=>((c.busy||{})[date]||{})[zone]||[];
+const bkGuests=n=>{const a=n%10,b=n%100;return n+" "+(a===1&&b!==11?"гість":a>=2&&a<=4&&(b<12||b>14)?"гості":"гостей");};
+function bkWhen(c,b){const d=c.days[b.day];if(!d)return b.time;const t=new Date(d.date+"T12:00:00").toLocaleDateString("uk-UA",{weekday:"long",day:"numeric",month:"long"});return (d.day===0?"Сьогодні, ":d.day===1?"Завтра, ":"")+t+", "+b.time;}
+function bkRemind(c){
+  if(!c.reminders) return "";
+  const m=+c.remindMin||120, h=m/60;
+  const t=m<60?m+" хвилин":m%60===0?(h===1?"годину":h+" "+(h<5?"години":"годин")):String(h).replace(".",",")+" години";
+  return "За "+t+" до візиту ми нагадаємо.";
+}
+function bkValid(st,c){
+  const b=bkState(), d=c.days[b.day];
+  if(st===1) return !!(b.zone&&b.time&&d&&!bkBusy(c,d.date,b.zone).includes(b.time));
+  if(st===2) return b.guests>=1&&b.guests<=c.maxGuests&&b.kids>=0&&b.kids<=b.guests;
+  if(st===3) return !!b.name.trim()&&b.phone.replace(/\D/g,"").length>=10;
+  return true;
+}
+// уточнює зайнятість обраного дня й зони на сервері (ті самі правила, що й при бронюванні)
 async function loadSlots(){
-  try{ const r=await api("slots",{day:S.day}); if(r&&r.slots){S.data.slots=r.slots;S.data.busy=r.busy||[];} }catch(e){}
-  if(S.data.busy.includes(S.slot)||!S.data.slots.includes(S.slot)) S.slot=S.data.slots.find(x=>!S.data.busy.includes(x))||"";
+  const c=bkCfg(), b=bkState(), d=c.days[b.day];
+  if(d&&b.zone&&CONFIG.API_URL){
+    try{ const r=await api("slots",{day:b.day,zone:b.zone});
+      if(r&&Array.isArray(r.slots)){ c.busy=c.busy||{}; c.busy[d.date]=c.busy[d.date]||{}; c.busy[d.date][b.zone]=c.times.filter(t=>!r.slots.includes(t)||(r.busy||[]).includes(t)); } }catch(e){}
+  }
+  if(b.time&&d&&bkBusy(c,d.date,b.zone).includes(b.time)) b.time="";
   renderBook();
 }
+const BK_TITLES=["Куди прийдете?","Скільки вас буде?","Як з вами зв'язатися?","Перевірте бронь"];
 function renderBook(){
-  const names=["Нд","Пн","Вт","Ср","Чт","Пт","Сб"], d0=new Date();
-  $("#days").innerHTML=[0,1,2,3,4,5,6].map(i=>{const d=new Date(d0.getTime()+i*864e5);return `<button class="pill ${S.day===i?"on":""}" data-day="${i}" style="width:64px;min-height:64px;padding:0;border-radius:14px"><div style="font-size:11px;opacity:.75">${names[d.getDay()]}</div><div style="font-size:18px">${d.getDate()}</div></button>`}).join("");
-  $("#slots").innerHTML=S.data.slots.map(s=>{const b=S.data.busy.includes(s);return `<button class="pill slot ${S.slot===s&&!b?"on":""}" data-slot="${s}" style="padding:0;border-radius:12px" ${b?"disabled":""}>${s}</button>`}).join("");
-  $("#gNum").textContent=S.guests;
-  const d=new Date(d0.getTime()+S.day*864e5); $("#bookSum").textContent=d.toLocaleDateString("uk-UA",{weekday:"short",day:"numeric",month:"long"})+", "+S.slot+" · "+S.guests+" гості";
+  const body=$("#bkBody"); if(!body||!S.data) return;
+  const c=bkCfg(), b=bkState();
+  if(b.done){
+    $("#bkProg").innerHTML="";
+    body.innerHTML=`<div class="card" style="padding:28px 18px;text-align:center;margin-top:12px"><div style="font-size:56px;line-height:1">✅</div><h2 style="margin:12px 0 6px">Бронь надіслано</h2><div style="color:var(--soft)">${esc(b.done)}</div><div style="color:var(--mute);margin-top:12px">Адміністратор підтвердить бронь. ${esc(bkRemind(c))}</div></div>`;
+    bkDock(); return;
+  }
+  $("#bkProg").innerHTML=`<div style="display:flex;gap:6px">${[1,2,3,4].map(i=>`<div style="flex:1;height:6px;border-radius:999px;background:${i<=b.step?"var(--acc)":"var(--line)"}"></div>`).join("")}</div><div class="cap" style="margin-top:8px">Крок ${b.step} з 4</div>`;
+  let h=`<h2 style="margin:0">${BK_TITLES[b.step-1]}</h2>`;
+  if(b.step===1){
+    const d=c.days[b.day]||c.days[0];
+    h+=`<div><div class="cap" style="margin-bottom:8px">Зона</div><div class="grid">${c.zones.map(z=>`<button class="card" data-bz="${esc(z.name)}" style="padding:14px;text-align:left;color:var(--text);font-family:inherit;${b.zone===z.name?"border-color:var(--acc);background:#2A1E16":""}"><b style="font-size:15px">${esc(z.name)}</b>${z.seats?`<div style="color:var(--mute);font-size:12px;margin-top:4px">${z.seats} ${(n=>{const a=n%10,b=n%100;return a===1&&b!==11?"місце":a>=2&&a<=4&&(b<12||b>14)?"місця":"місць";})(z.seats)}</div>`:""}</button>`).join("")}</div></div>`;
+    h+=`<div><div class="cap" style="margin-bottom:8px">День</div><div class="row">${c.days.map(x=>`<button class="pill ${b.day===x.day?"on":""}" data-bd="${x.day}" style="width:72px;min-height:64px;padding:0;border-radius:14px"><div style="font-size:11px;opacity:.75">${x.day===0?"Сьогодні":x.day===1?"Завтра":esc(x.wd)}</div><div style="font-size:18px">${x.dom}</div></button>`).join("")}</div></div>`;
+    if(b.zone){
+      const busy=bkBusy(c,d.date,b.zone), free=c.times.filter(t=>!busy.includes(t));
+      h+=`<div><div class="cap" style="margin-bottom:8px">Вільний час</div><div class="grid" style="grid-template-columns:repeat(4,1fr);gap:8px">${c.times.map(t=>{const x=busy.includes(t);return `<button class="pill slot ${b.time===t&&!x?"on":""}" data-bt="${t}" style="padding:0;border-radius:12px;${x?"opacity:.45":""}" ${x?"disabled":""}>${t}</button>`}).join("")}</div>${free.length?"":`<div class="card" style="padding:12px 14px;margin-top:10px;color:var(--soft)">Вільних столиків немає. Оберіть інший день або зону.</div>`}</div>`;
+    } else h+=`<div style="color:var(--mute)">Оберіть зону — покажемо вільний час.</div>`;
+  }
+  if(b.step===2){
+    h+=`<div class="card" style="padding:22px 14px;text-align:center"><div style="display:flex;align-items:center;justify-content:center;gap:24px"><button class="sq" data-bk="g-" style="width:64px;height:64px;font-size:30px;${b.guests<=1?"opacity:.4":""}" ${b.guests<=1?"disabled":""} aria-label="Менше гостей">−</button><b style="font-size:44px;min-width:64px">${b.guests}</b><button class="sq acc" data-bk="g+" style="width:64px;height:64px;font-size:30px;${b.guests>=c.maxGuests?"opacity:.4":""}" ${b.guests>=c.maxGuests?"disabled":""} aria-label="Більше гостей">+</button></div><div style="font-size:28px;margin-top:16px;line-height:1.5;letter-spacing:4px" aria-hidden="true">${"☕".repeat(b.guests)}</div><div style="color:var(--mute);font-size:12px;margin-top:6px">${bkGuests(b.guests)} · максимум ${c.maxGuests}</div></div>`;
+    if(c.kidsChairs) h+=`<div class="card" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between"><div><b>Дитячі стільці</b><div style="color:var(--mute);font-size:12px">Скільки потрібно</div></div><div style="display:flex;align-items:center;gap:6px"><button class="sq" data-bk="k-" style="${b.kids<=0?"opacity:.4":""}" ${b.kids<=0?"disabled":""} aria-label="Менше стільців">−</button><b style="min-width:24px;text-align:center;font-size:16px">${b.kids}</b><button class="sq" data-bk="k+" style="${b.kids>=b.guests?"opacity:.4":""}" ${b.kids>=b.guests?"disabled":""} aria-label="Більше стільців">+</button></div></div>`;
+  }
+  if(b.step===3){
+    h+=`<label><div class="cap" style="margin-bottom:8px">Ім'я</div><input type="text" id="bkName" maxlength="60" value="${esc(b.name)}" autocomplete="name"></label>
+    <label><div class="cap" style="margin-bottom:8px">Телефон</div><input type="tel" id="bkPhone" maxlength="20" placeholder="+380" value="${esc(b.phone)}" autocomplete="tel"></label>
+    <label><div class="cap" style="margin-bottom:8px">Побажання (необов'язково)</div><textarea id="bkNote" maxlength="300" rows="3" placeholder="Наприклад: столик біля вікна" style="width:100%;box-sizing:border-box;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;outline:0;color:var(--text);font-family:inherit;font-size:15px;resize:vertical">${esc(b.note)}</textarea></label>`;
+  }
+  if(b.step===4){
+    const rows=[["Коли",bkWhen(c,b)],["Зона",b.zone],["Гості",bkGuests(b.guests)+(c.kidsChairs&&b.kids?", дитячих стільців: "+b.kids:"")],["Ім'я",b.name.trim()],["Телефон",b.phone.trim()],["Побажання",b.note.trim()||"—"]];
+    h+=`<div class="card" style="padding:6px 14px">${rows.map(r=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)"><span style="color:var(--mute)">${r[0]}</span><b style="text-align:right">${esc(r[1])}</b></div>`).join("")}</div><div style="color:var(--mute);font-size:12px">Адміністратор підтвердить бронь. ${esc(bkRemind(c))}</div>`;
+  }
+  body.innerHTML=h; bkDock();
+}
+// «Назад» і «Далі» внизу; на першому кроці лише «Далі», на останньому замість «Далі» — «Забронювати»; «Далі» неактивна, поки крок не заповнено
+function bkDock(){
+  const dock=$("#bkDock"); if(!dock) return;
+  const c=bkCfg(), b=bkState();
+  if(b.done){ dock.innerHTML=`<button class="btn center" data-bk="again">Готово</button>`; return; }
+  const ok=bkValid(b.step,c);
+  const main=b.step===4
+    ? `<button class="btn center" data-bk="send" ${b.sending?"disabled":""}>${b.sending?"Надсилаємо…":"Забронювати"}</button>`
+    : `<button class="btn center" data-bk="next" ${ok?"":"disabled"} style="${ok?"":"opacity:.45"}">Далі</button>`;
+  dock.innerHTML=`<div style="display:flex;gap:10px">${b.step>1?`<div style="flex:1;display:flex"><button class="btn center ghost" data-bk="back">Назад</button></div>`:""}<div style="flex:1;display:flex">${main}</div></div>`;
+}
+async function bkAction(a){
+  const c=bkCfg(), b=bkState();
+  if(a==="g-"){ b.guests=Math.max(1,b.guests-1); b.kids=Math.min(b.kids,b.guests); }
+  else if(a==="g+") b.guests=Math.min(c.maxGuests,b.guests+1);
+  else if(a==="k-") b.kids=Math.max(0,b.kids-1);
+  else if(a==="k+") b.kids=Math.min(b.guests,b.kids+1);
+  else if(a==="next"){ if(!bkValid(b.step,c)) return; b.step=Math.min(4,b.step+1); }
+  else if(a==="back") b.step=Math.max(1,b.step-1);
+  else if(a==="again"){ S.bk=null; bkState(); loadSlots(); return; }
+  else if(a==="send"){
+    if(b.sending) return; b.sending=true; bkDock();
+    try{
+      const r=await api("booking",{zone:b.zone,day:b.day,time:b.time,guests:b.guests,kids:c.kidsChairs?b.kids:0,name:b.name.trim(),phone:b.phone.trim(),note:b.note.trim()});
+      const no=r&&r.booking&&r.booking.number;
+      b.done=(no?"№"+no+" · ":"")+bkWhen(c,b)+" · "+b.zone+" · "+bkGuests(b.guests);
+      c.phone=b.phone.trim(); c.name=b.name.trim();
+      if(tg&&tg.HapticFeedback){try{tg.HapticFeedback.notificationOccurred("success");}catch(e){}}
+    }catch(e){
+      toast(e.message&&/[А-Яа-яІіЇїЄєҐґ]/.test(e.message)?e.message:"Не вдалося забронювати. Спробуйте ще раз.",7000);
+      if(e.status===409) loadSlots();
+    }
+    b.sending=false;
+  }
+  renderBook();
+  if(a==="next"||a==="back"){ const sc=document.querySelector("#s-book .scroll"); if(sc) sc.scrollTop=0; }
 }
 async function loadOrders(){
   try{ const r=await api("orders",{}); if(r&&Array.isArray(r.orders)) S.orders=r.orders; else S.orders=(S.data===DEMO||!CONFIG.API_URL)?DEMO.orders:[]; }
@@ -534,8 +631,10 @@ document.addEventListener("click",e=>{
   const inc=e.target.closest("[data-inc]"); if(inc){add(inc.dataset.inc,1);return;}
   const dec=e.target.closest("[data-dec]"); if(dec){add(dec.dataset.dec,-1);return;}
   const pk=e.target.closest("[data-pick]"); if(pk){S.pickup=pk.dataset.pick;renderCart();return;}
-  const dy=e.target.closest("[data-day]"); if(dy){S.day=+dy.dataset.day;renderBook();loadSlots();return;}
-  const sl=e.target.closest("[data-slot]"); if(sl&&!sl.disabled){S.slot=sl.dataset.slot;renderBook();return;}
+  const bz=e.target.closest("[data-bz]"); if(bz){const b=bkState();b.zone=bz.dataset.bz;b.time="";renderBook();loadSlots();return;}
+  const bd=e.target.closest("[data-bd]"); if(bd){const b=bkState();b.day=+bd.dataset.bd;b.time="";renderBook();loadSlots();return;}
+  const bt=e.target.closest("[data-bt]"); if(bt&&!bt.disabled){bkState().time=bt.dataset.bt;renderBook();return;}
+  const bk=e.target.closest("[data-bk]"); if(bk&&!bk.disabled){bkAction(bk.dataset.bk);return;}
   const rp=e.target.closest("[data-repeat]"); if(rp){repeatOrder(+rp.dataset.repeat);return;}
   if(e.target.closest("#sw")){S.useBonus=!S.useBonus;renderCart();return;}
 });
@@ -544,17 +643,12 @@ $("#cartBtn").onclick=()=>go("cart");
 $("#activeOrder").onclick=()=>{const ao=activeOrder(); if(ao){S.last=ao; go("track");}};
 $("#bonusChip").onclick=()=>go("bonus");
 $("#orderBtn").onclick=placeOrder;
-document.addEventListener("input",e=>{if(e.target.id==="comment")S.comment=e.target.value;});
-$("#gMinus").onclick=()=>{S.guests=Math.max(1,S.guests-1);renderBook();};
-$("#gPlus").onclick=()=>{S.guests=Math.min(8,S.guests+1);renderBook();};
-$("#bookBtn").onclick=async()=>{
-  const ph=$("#phone").value.trim(); if(ph.replace(/\D/g,"").length<10){toast("Вкажіть телефон");return;}
-  if(!S.slot){toast("Оберіть вільний час");return;}
-  if(S.busy) return; S.busy=true; const bb=$("#bookBtn"); bb.textContent="Надсилаємо…"; bb.disabled=true;
-  try{const r=await api("booking",{day:S.day,slot:S.slot,guests:S.guests,phone:ph}); toast(r&&r.booking&&r.booking.number?("Бронь №"+r.booking.number+" надіслано"):"Заявку на бронь надіслано"); loadSlots();}
-  catch(e){toast(e.message&&/[А-Яа-яІіЇїЄєҐґ]/.test(e.message)?e.message:"Не вдалося забронювати",6000);}
-  S.busy=false; bb.textContent="Забронювати"; bb.disabled=false;
-};
+document.addEventListener("input",e=>{
+  const id=e.target.id;
+  if(id==="comment") S.comment=e.target.value;
+  // крок 3 бронювання: зберігаємо введене без перемальовування (щоб не губився фокус) і оновлюємо «Далі»
+  if(id==="bkName"||id==="bkPhone"||id==="bkNote"){ const b=bkState(); b[{bkName:"name",bkPhone:"phone",bkNote:"note"}[id]]=e.target.value; bkDock(); }
+});
 load();
 </script>
 </body>
